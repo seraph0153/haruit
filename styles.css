@@ -549,6 +549,13 @@ textarea.input {
     z-index: 2;
     box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
     /* 주변 어둡게 */
+    pointer-events: none;
+    /* 터치 통과 */
+}
+
+#capture-canvas {
+    z-index: 5;
+    /* 오버레이보다 위 */
 }
 
 .scan-frame::before,

@@ -548,8 +548,8 @@ async function detectObjects(videoElement) {
         const predictions = await AppState.objectDetectionModel.detect(videoElement);
         console.log("Predictions:", predictions);
 
-        // 50% 이상 정확도만 반환
-        return predictions.filter(p => p.score > 0.5);
+        // 40% 이상 정확도만 반환
+        return predictions.filter(p => p.score > 0.4);
 
     } catch (e) {
         console.error("Detection error:", e);
