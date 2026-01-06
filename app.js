@@ -372,6 +372,16 @@ function showScanResults(detectedIds) {
 
 // TensorFLow.js 감지 로직
 async function detectObjects(videoElement) {
+    // 모델 로딩 중이면 최대 5초 대기
+    if (AppState.isModelLoading) {
+        console.log("Waiting for model to load...");
+        let retries = 0;
+        while (AppState.isModelLoading && retries < 10) {
+            await new Promise(r => setTimeout(r, 500));
+            retries++;
+        }
+    }
+
     if (!AppState.objectDetectionModel || !videoElement) {
         // 모델이 없으면 2초 딜레이 후 빈 배열 반환 (랜덤 폴백)
         return new Promise(resolve => setTimeout(() => resolve([]), 2000));
@@ -1095,42 +1105,18 @@ document.head.appendChild(style);
 // ============================================
 // 데이터 관리자 초기화 및 앱 시작
 // ============================================
-document.addEventListener('DOMContentLoaded', () => {
-    DataManager.init();
-
-    // URL 해시 라우팅 지원 (간단한 형태)
-    window.addEventListener('hashchange', () => {
-        const hash = window.location.hash.substring(1);
-        if (hash) showScreen(hash);
-    });
-
-    // 초기 화면
-    initScreen();
-
-    // TensorFlow 모델 로드 시작 (백그라운드)
-    loadRunningModel();
-});
-
-async function loadRunningModel() {
-    if (AppState.isModelLoading || AppState.objectDetectionModel) return;
-
-    try {
-        AppState.isModelLoading = true;
-        console.log("Loading TensorFlow model...");
-        AppState.objectDetectionModel = await cocoSsd.load();
-        console.log("Model loaded successfully");
-    } catch (err) {
-        console.error("Failed to load model:", err);
-    } finally {
-        AppState.isModelLoading = false;
-    }
-}
 // ============================================
-// 초기화
+// 데이터 관리자 초기화 및 앱 시작
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     // 데이터 초기화
     DataManager.init();
+
+    // URL 해시 라우팅 지원
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash.substring(1);
+        if (hash) showScreen(hash);
+    });
 
     // 시작 화면 표시
     showScreen('role-select');
@@ -1144,4 +1130,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // TensorFlow 모델 로드 시작 (백그라운드)
+    loadRunningModel();
 });
+
+async function loadRunningModel() {
+    if (AppState.isModelLoading || AppState.objectDetectionModel) return;
+
+    try {
+        AppState.isModelLoading = true;
+        console.log("Loading TensorFlow model...");
+        // showToast("AI 모델을 준비하고 있어요..."); // 너무 일찍 뜨면 귀찮을 수 있음
+
+        AppState.objectDetectionModel = await cocoSsd.load();
+        console.log("Model loaded successfully");
+        showToast("✨ AI 분석 준비 완료!"); // 사용자에게 모델 로드 완료 알림
+
+    } catch (err) {
+        console.error("Failed to load model:", err);
+        showToast("AI 모델 로드 실패 (기본 모드로 동작합니다)");
+    } finally {
+        AppState.isModelLoading = false;
+    }
+}
