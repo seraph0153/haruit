@@ -1,0 +1,903 @@
+/**
+ * 하루잇(HARUIT) - 메인 애플리케이션 로직
+ */
+
+// ============================================
+// 앱 상태 관리
+// ============================================
+const AppState = {
+    currentScreen: 'role-select',
+    currentUser: null,
+    isAdmin: false,
+
+    // 미션 진행 상태
+    selectedMobility: null,
+    detectedEnvironments: [],
+    currentMission: null,
+    missionAttempts: 0,
+
+    // 스몰토크 상태
+    smallTalkQuestion: null,
+    smallTalkAttempts: 0,
+    smallTalkResponse: null,
+    missionCompleted: false,
+    smallTalkCompleted: false,
+
+    // 타이머
+    missionStartTime: null,
+
+    reset() {
+        this.selectedMobility = null;
+        this.detectedEnvironments = [];
+        this.currentMission = null;
+        this.missionAttempts = 0;
+        this.smallTalkQuestion = null;
+        this.smallTalkAttempts = 0;
+        this.smallTalkResponse = null;
+        this.missionCompleted = false;
+        this.smallTalkCompleted = false;
+        this.missionStartTime = null;
+    }
+};
+
+// ============================================
+// 화면 전환
+// ============================================
+function showScreen(screenId) {
+    // 모든 화면 숨기기
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('active');
+    });
+
+    // 대상 화면 표시
+    const targetScreen = document.getElementById(screenId);
+    if (targetScreen) {
+        targetScreen.classList.add('active');
+        AppState.currentScreen = screenId;
+
+        // 화면별 초기화
+        initScreen(screenId);
+    }
+}
+
+function initScreen(screenId) {
+    switch (screenId) {
+        case 'home':
+            updateHomeStats();
+            break;
+        case 'records':
+            renderCalendar();
+            renderRecentActivities();
+            break;
+        case 'admin-dashboard':
+            renderAdminDashboard();
+            break;
+        case 'admin-user-detail':
+            renderUserDetail();
+            break;
+    }
+}
+
+// ============================================
+// 역할 선택 화면
+// ============================================
+function selectRole(role) {
+    if (role === 'user') {
+        // 현재 사용자 확인
+        const currentUser = DataManager.getCurrentUser();
+        if (currentUser) {
+            AppState.currentUser = currentUser;
+            showScreen('home');
+        } else {
+            showScreen('user-setup');
+        }
+    } else if (role === 'admin') {
+        showScreen('admin-login');
+    }
+}
+
+// ============================================
+// 사용자 설정 화면
+// ============================================
+function setupUser() {
+    const nameInput = document.getElementById('user-name-input');
+    const name = nameInput.value.trim();
+
+    if (name.length < 1) {
+        showToast('이름을 입력해주세요');
+        return;
+    }
+
+    // 새 사용자 생성
+    const user = DataManager.createUser(name);
+    AppState.currentUser = user;
+    showScreen('home');
+}
+
+// ============================================
+// 홈 화면
+// ============================================
+function updateHomeStats() {
+    const user = AppState.currentUser;
+    if (!user) return;
+
+    const stats = Statistics.getUserStats(user);
+
+    // 연속 사용 날
+    const consecutiveEl = document.getElementById('consecutive-days');
+    if (consecutiveEl) {
+        consecutiveEl.textContent = stats.consecutiveDays;
+    }
+
+    // 이번 주 참여
+    const weeklyEl = document.getElementById('weekly-participation');
+    if (weeklyEl) {
+        const weeklyCount = stats.weeklyParticipation.reduce((a, b) => a + b, 0);
+        weeklyEl.textContent = weeklyCount;
+    }
+
+    // 사용자 이름
+    const nameEl = document.getElementById('home-user-name');
+    if (nameEl) {
+        nameEl.textContent = user.name;
+    }
+}
+
+function startMission() {
+    AppState.reset();
+    AppState.missionStartTime = new Date();
+    showScreen('mobility-select');
+}
+
+function takeRestDay() {
+    const user = AppState.currentUser;
+    if (user) {
+        DataManager.addRestDay(user.userId);
+        showToast('쉬는 날로 기록되었습니다');
+        updateHomeStats();
+    }
+}
+
+// ============================================
+// 거동 상태 선택
+// ============================================
+function selectMobility(mobility) {
+    AppState.selectedMobility = mobility;
+
+    // 라디오 카드 UI 업데이트
+    document.querySelectorAll('.radio-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    const selectedCard = document.querySelector(`[data-mobility="${mobility}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+    }
+}
+
+function confirmMobility() {
+    if (!AppState.selectedMobility) {
+        showToast('거동 상태를 선택해주세요');
+        return;
+    }
+    showScreen('environment-scan');
+}
+
+// ============================================
+// 환경 스캔 시뮬레이션
+// ============================================
+function startScan() {
+    const scanBtn = document.getElementById('scan-btn');
+    const scanFrame = document.querySelector('.scan-frame');
+    const scanLine = document.querySelector('.scan-line');
+    const scanResult = document.querySelector('.scan-result');
+    const scanMessage = document.getElementById('scan-message');
+
+    // 버튼 숨기기
+    scanBtn.style.display = 'none';
+    scanMessage.textContent = '잠깐 살펴볼게요. 사진은 저장하지 않아요.';
+
+    // 스캔 라인 표시
+    if (scanLine) scanLine.style.display = 'block';
+
+    // 2초 후 결과 표시
+    setTimeout(() => {
+        // 스캔 라인 숨기기
+        if (scanLine) scanLine.style.display = 'none';
+
+        // 랜덤 환경 선택 (3-5개)
+        const shuffled = [...ENVIRONMENTS].sort(() => Math.random() - 0.5);
+        const count = 3 + Math.floor(Math.random() * 3);
+        AppState.detectedEnvironments = shuffled.slice(0, count);
+
+        // 결과 렌더링
+        scanResult.innerHTML = AppState.detectedEnvironments.map(env =>
+            `<div class="scan-item">
+                <span>✓</span>
+                <span>${env.icon} ${env.name} 감지됨</span>
+            </div>`
+        ).join('');
+
+        scanResult.classList.add('show');
+        scanMessage.textContent = '환경을 감지했어요!';
+
+        // 다음 버튼 표시
+        document.getElementById('scan-next-btn').style.display = 'block';
+    }, 2000);
+}
+
+function confirmScan() {
+    generateMission();
+    showScreen('mission-suggest');
+}
+
+// ============================================
+// AI 미션 생성
+// ============================================
+function generateMission() {
+    const mobility = AppState.selectedMobility;
+    const environments = AppState.detectedEnvironments;
+
+    if (environments.length === 0) return;
+
+    // 랜덤 환경 선택
+    const env = environments[Math.floor(Math.random() * environments.length)];
+    const missionList = MISSIONS[env.id][mobility];
+
+    if (!missionList || missionList.length === 0) return;
+
+    // 랜덤 미션 선택
+    const mission = missionList[Math.floor(Math.random() * missionList.length)];
+
+    AppState.currentMission = {
+        environment: env.id,
+        environmentName: env.name,
+        environmentIcon: env.icon,
+        mission: mission
+    };
+
+    // UI 업데이트
+    const missionTextEl = document.getElementById('mission-text');
+    if (missionTextEl) {
+        missionTextEl.textContent = mission;
+    }
+
+    const missionEnvEl = document.getElementById('mission-environment');
+    if (missionEnvEl) {
+        missionEnvEl.textContent = `${env.icon} ${env.name}`;
+    }
+}
+
+function acceptMission() {
+    showScreen('ar-simulation');
+    startARAnimation();
+}
+
+function requestNewMission() {
+    AppState.missionAttempts++;
+
+    if (AppState.missionAttempts >= 3) {
+        showToast('더 이상 다른 미션을 받을 수 없어요');
+        return;
+    }
+
+    generateMission();
+
+    // 남은 횟수 표시
+    const remainingEl = document.getElementById('mission-attempts-remaining');
+    if (remainingEl) {
+        remainingEl.textContent = `다른 미션 받기 (${3 - AppState.missionAttempts}회 남음)`;
+    }
+}
+
+// ============================================
+// AR 시뮬레이션
+// ============================================
+function startARAnimation() {
+    const arMissionEl = document.getElementById('ar-mission-text');
+    if (arMissionEl && AppState.currentMission) {
+        arMissionEl.textContent = AppState.currentMission.mission;
+    }
+
+    // 파티클 효과 시작
+    createParticles();
+}
+
+function createParticles() {
+    const container = document.querySelector('.ar-particles');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    for (let i = 0; i < 10; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = `${Math.random() * 100}%`;
+        particle.style.animationDelay = `${Math.random() * 3}s`;
+        container.appendChild(particle);
+    }
+}
+
+function showSmallTalkOption() {
+    showScreen('smalltalk-check');
+}
+
+function hasSomeoneNearby(hasCompany) {
+    if (hasCompany) {
+        generateSmallTalkQuestion();
+        showScreen('smalltalk-question');
+    } else {
+        // 혼자인 경우 바로 완료/미완료 선택
+        showScreen('ar-simulation');
+    }
+}
+
+function completeMission(completed) {
+    AppState.missionCompleted = completed;
+
+    if (!AppState.smallTalkCompleted && !completed) {
+        // 미완료인 경우 바로 보상 화면
+        showRewardScreen();
+    } else {
+        // 완료한 경우 스몰토크 옵션 제공
+        showSmallTalkOption();
+    }
+}
+
+// ============================================
+// 스몰토크
+// ============================================
+function generateSmallTalkQuestion() {
+    const usedQuestions = [];
+    let question;
+
+    do {
+        const idx = Math.floor(Math.random() * SMALL_TALK_QUESTIONS.length);
+        question = SMALL_TALK_QUESTIONS[idx];
+    } while (usedQuestions.includes(question) && usedQuestions.length < SMALL_TALK_QUESTIONS.length);
+
+    usedQuestions.push(question);
+    AppState.smallTalkQuestion = question;
+
+    // UI 업데이트
+    const questionEl = document.getElementById('smalltalk-question-text');
+    if (questionEl) {
+        questionEl.textContent = question;
+    }
+}
+
+function acceptSmallTalkQuestion() {
+    showScreen('smalltalk-response');
+
+    // 질문 다시 표시
+    const questionEl = document.getElementById('smalltalk-response-question');
+    if (questionEl) {
+        questionEl.textContent = AppState.smallTalkQuestion;
+    }
+}
+
+function requestNewSmallTalkQuestion() {
+    AppState.smallTalkAttempts++;
+
+    if (AppState.smallTalkAttempts >= 3) {
+        showToast('더 이상 다른 질문을 받을 수 없어요');
+        return;
+    }
+
+    generateSmallTalkQuestion();
+
+    // 남은 횟수 표시
+    const remainingEl = document.getElementById('smalltalk-attempts-remaining');
+    if (remainingEl) {
+        remainingEl.textContent = `다른 질문 원해요 (${3 - AppState.smallTalkAttempts}회 남음)`;
+    }
+}
+
+function skipSmallTalk() {
+    AppState.smallTalkCompleted = false;
+    showRewardScreen();
+}
+
+function completeSmallTalk() {
+    const responseInput = document.getElementById('smalltalk-response-input');
+    AppState.smallTalkResponse = responseInput?.value.trim() || null;
+    AppState.smallTalkCompleted = true;
+    showRewardScreen();
+}
+
+function cancelSmallTalk() {
+    AppState.smallTalkCompleted = false;
+    showScreen('ar-simulation');
+}
+
+// ============================================
+// 보상 화면
+// ============================================
+function showRewardScreen() {
+    showScreen('reward');
+
+    const iconEl = document.getElementById('reward-icon');
+    const messageEl = document.getElementById('reward-message');
+    const submessageEl = document.getElementById('reward-submessage');
+
+    if (AppState.missionCompleted) {
+        if (AppState.smallTalkCompleted) {
+            iconEl.textContent = '💝';
+            messageEl.textContent = '누군가와 따뜻한 대화를 나눴네요';
+            submessageEl.textContent = '오늘의 한 걸음이 남았습니다 ✨';
+        } else {
+            iconEl.textContent = '🌟';
+            messageEl.textContent = '오늘의 한 걸음이 남았습니다';
+            submessageEl.textContent = '작은 움직임이 큰 변화를 만들어요 ✨';
+        }
+    } else {
+        iconEl.textContent = '💫';
+        messageEl.textContent = '오늘도 여기까지면 충분해요';
+        submessageEl.textContent = '언제든 다시 시도할 수 있어요';
+    }
+
+    // 활동 기록 저장
+    saveActivity();
+
+    // 3초 후 홈으로 자동 이동
+    setTimeout(() => {
+        if (AppState.currentScreen === 'reward') {
+            goHome();
+        }
+    }, 5000);
+}
+
+function saveActivity() {
+    const user = AppState.currentUser;
+    if (!user) return;
+
+    const now = new Date();
+    const duration = AppState.missionStartTime
+        ? Math.floor((now - AppState.missionStartTime) / 1000)
+        : 0;
+
+    const activity = {
+        date: getDateString(now),
+        time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`,
+        mobility: AppState.selectedMobility,
+        environment: AppState.currentMission?.environment,
+        mission: AppState.currentMission?.mission || '',
+        completed: AppState.missionCompleted,
+        duration: duration,
+        smallTalkIncluded: !!AppState.smallTalkQuestion,
+        smallTalkQuestion: AppState.smallTalkQuestion,
+        smallTalkCompleted: AppState.smallTalkCompleted,
+        smallTalkResponse: AppState.smallTalkResponse
+    };
+
+    DataManager.addActivity(user.userId, activity);
+
+    // 사용자 데이터 갱신
+    AppState.currentUser = DataManager.getUser(user.userId);
+}
+
+function goHome() {
+    AppState.reset();
+    showScreen('home');
+}
+
+// ============================================
+// 기록 화면
+// ============================================
+let calendarDate = new Date();
+
+function renderCalendar() {
+    const user = AppState.currentUser;
+    if (!user) return;
+
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+
+    // 제목 업데이트
+    const titleEl = document.getElementById('calendar-title');
+    if (titleEl) {
+        titleEl.textContent = `${year}년 ${month + 1}월`;
+    }
+
+    // 달력 날짜 생성
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDay = firstDay.getDay();
+    const daysInMonth = lastDay.getDate();
+
+    const today = new Date();
+    const todayStr = getDateString(today);
+
+    // 활동 날짜 맵
+    const activityDates = {};
+    user.activities.forEach(act => {
+        activityDates[act.date] = act.isRestDay ? 'rest' : 'participated';
+    });
+
+    // HTML 생성
+    let html = '';
+
+    // 빈 칸
+    for (let i = 0; i < startDay; i++) {
+        html += '<div class="calendar-day empty"></div>';
+    }
+
+    // 날짜
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        let classes = 'calendar-day';
+
+        if (dateStr === todayStr) classes += ' today';
+        if (activityDates[dateStr] === 'participated') classes += ' participated';
+        if (activityDates[dateStr] === 'rest') classes += ' rest';
+
+        html += `<div class="${classes}">${day}</div>`;
+    }
+
+    const daysContainer = document.getElementById('calendar-days');
+    if (daysContainer) {
+        daysContainer.innerHTML = html;
+    }
+
+    // 월간 통계
+    updateMonthlyStats(user, year, month);
+}
+
+function updateMonthlyStats(user, year, month) {
+    const monthActivities = user.activities.filter(a => {
+        const actDate = new Date(a.date);
+        return actDate.getMonth() === month && actDate.getFullYear() === year && !a.isRestDay;
+    });
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const participationRate = Math.round((monthActivities.length / daysInMonth) * 100);
+
+    const rateEl = document.getElementById('monthly-rate');
+    const countEl = document.getElementById('monthly-count');
+
+    if (rateEl) rateEl.textContent = `${participationRate}%`;
+    if (countEl) countEl.textContent = `${monthActivities.length}일`;
+}
+
+function prevMonth() {
+    calendarDate.setMonth(calendarDate.getMonth() - 1);
+    renderCalendar();
+}
+
+function nextMonth() {
+    calendarDate.setMonth(calendarDate.getMonth() + 1);
+    renderCalendar();
+}
+
+function renderRecentActivities() {
+    const user = AppState.currentUser;
+    if (!user) return;
+
+    const container = document.getElementById('recent-activities');
+    if (!container) return;
+
+    const recentActivities = user.activities.slice(0, 10);
+
+    if (recentActivities.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">아직 활동 기록이 없습니다</p>';
+        return;
+    }
+
+    container.innerHTML = recentActivities.map(act => {
+        const envInfo = ENVIRONMENTS.find(e => e.id === act.environment);
+        const icon = envInfo?.icon || '📋';
+        const statusIcon = act.completed ? '✅' : (act.isRestDay ? '😴' : '⏸️');
+        const smallTalkBadge = act.smallTalkCompleted
+            ? '<span class="badge badge-primary">스몰토크 ✓</span>'
+            : '';
+
+        return `
+            <div class="card" style="padding: var(--spacing-md);">
+                <div class="flex items-center gap-md">
+                    <div style="font-size: 24px;">${icon}</div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-sm">
+                            <span class="font-weight: 600;">${act.date}</span>
+                            <span>${statusIcon}</span>
+                            ${smallTalkBadge}
+                        </div>
+                        <div class="text-muted" style="font-size: var(--font-size-sm);">
+                            ${act.isRestDay ? '쉬는 날' : act.mission}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ============================================
+// 관리자 기능
+// ============================================
+let selectedUserId = null;
+
+function adminLogin() {
+    const passwordInput = document.getElementById('admin-password');
+    const password = passwordInput.value;
+
+    if (DataManager.verifyAdminPassword(password)) {
+        AppState.isAdmin = true;
+        showScreen('admin-dashboard');
+    } else {
+        showToast('비밀번호가 올바르지 않습니다');
+        passwordInput.value = '';
+    }
+}
+
+function renderAdminDashboard() {
+    // 전체 통계
+    const overallStats = Statistics.getOverallStats();
+
+    document.getElementById('admin-total-users').textContent = overallStats.totalUsers;
+    document.getElementById('admin-today-participants').textContent =
+        `${overallStats.todayParticipants}명 (${overallStats.todayParticipationRate}%)`;
+    document.getElementById('admin-weekly-rate').textContent = `${overallStats.weeklyAvgRate}%`;
+    document.getElementById('admin-new-users').textContent = overallStats.newUsers;
+
+    // 사용자 목록
+    renderUserList();
+}
+
+function renderUserList(searchQuery = '') {
+    const users = DataManager.getAllUsers();
+    const container = document.getElementById('admin-user-list');
+
+    const filteredUsers = searchQuery
+        ? users.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        : users;
+
+    if (filteredUsers.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center p-md">사용자가 없습니다</p>';
+        return;
+    }
+
+    container.innerHTML = filteredUsers.map(user => {
+        const stats = Statistics.getUserStats(user);
+        const lastActivity = user.lastActivity
+            ? new Date(user.lastActivity).toLocaleDateString('ko-KR')
+            : '없음';
+
+        return `
+            <div class="user-card" onclick="viewUserDetail('${user.userId}')">
+                <div class="user-avatar">${user.name[0]}</div>
+                <div class="user-info">
+                    <div class="user-name">${user.name}</div>
+                    <div class="user-meta">마지막 참여: ${lastActivity}</div>
+                </div>
+                <div class="user-stats">
+                    <div class="user-rate">${stats.monthlyParticipationRate}%</div>
+                    <div class="user-streak">${stats.consecutiveDays}일 연속</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function searchUsers() {
+    const query = document.getElementById('admin-search').value;
+    renderUserList(query);
+}
+
+function viewUserDetail(userId) {
+    selectedUserId = userId;
+    showScreen('admin-user-detail');
+}
+
+function renderUserDetail() {
+    const user = DataManager.getUser(selectedUserId);
+    if (!user) return;
+
+    const stats = Statistics.getUserStats(user);
+
+    // 기본 정보
+    document.getElementById('detail-user-name').textContent = user.name;
+    document.getElementById('detail-user-joindate').textContent =
+        `가입일: ${user.joinDate}`;
+
+    // 통계
+    document.getElementById('detail-total-days').textContent = stats.totalParticipation;
+    document.getElementById('detail-monthly-rate').textContent = `${stats.monthlyParticipationRate}%`;
+    document.getElementById('detail-consecutive').textContent = stats.consecutiveDays;
+    document.getElementById('detail-completion-rate').textContent = `${stats.completionRate}%`;
+
+    // 스몰토크 통계
+    document.getElementById('detail-smalltalk-count').textContent = stats.smallTalkCount;
+    document.getElementById('detail-smalltalk-rate').textContent = `${stats.smallTalkRate}%`;
+    document.getElementById('detail-frequent-question').textContent =
+        stats.mostFrequentQuestion?.question || '없음';
+
+    // 선호 미션 유형
+    renderPreferredMissions(stats.preferredMissions);
+
+    // 월별 차트
+    renderMonthlyChart(user);
+
+    // 최근 활동
+    renderDetailActivities(user);
+}
+
+function renderPreferredMissions(preferredMissions) {
+    const container = document.getElementById('preferred-missions');
+    if (!container) return;
+
+    const sorted = Object.entries(preferredMissions)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+    if (sorted.length === 0) {
+        container.innerHTML = '<p class="text-muted">데이터 없음</p>';
+        return;
+    }
+
+    container.innerHTML = sorted.map(([envId, count]) => {
+        const env = ENVIRONMENTS.find(e => e.id === envId);
+        return `
+            <div class="flex items-center justify-between mb-sm">
+                <span>${env?.icon || '📋'} ${env?.name || envId}</span>
+                <span class="text-primary font-weight: 600;">${count}회</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderMonthlyChart(user) {
+    const container = document.getElementById('monthly-chart');
+    if (!container) return;
+
+    const monthlyData = Statistics.getMonthlyData(user, 6);
+    const maxRate = Math.max(...monthlyData.map(d => d.rate), 1);
+
+    container.innerHTML = monthlyData.map(data => `
+        <div class="bar-item">
+            <div class="bar" style="height: ${(data.rate / maxRate) * 100}px;"></div>
+            <div class="bar-label">${data.label}</div>
+        </div>
+    `).join('');
+}
+
+function renderDetailActivities(user) {
+    const container = document.getElementById('detail-activities');
+    if (!container) return;
+
+    const activities = user.activities.slice(0, 20);
+
+    if (activities.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">활동 기록이 없습니다</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>날짜</th>
+                        <th>환경</th>
+                        <th>완료</th>
+                        <th>스몰토크</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${activities.map(act => {
+        const env = ENVIRONMENTS.find(e => e.id === act.environment);
+        return `
+                            <tr>
+                                <td>${act.date}</td>
+                                <td>${env?.icon || '-'} ${env?.name || '-'}</td>
+                                <td>${act.completed ? '✅' : '⏸️'}</td>
+                                <td>${act.smallTalkCompleted ? '✅' : '-'}</td>
+                            </tr>
+                        `;
+    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function exportUserData() {
+    const csv = DataManager.exportToCSV(selectedUserId);
+    downloadCSV(csv, `haruit_${selectedUserId}_data.csv`);
+}
+
+function exportAllData() {
+    const csv = DataManager.exportToCSV();
+    downloadCSV(csv, 'haruit_all_data.csv');
+}
+
+function downloadCSV(csv, filename) {
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('데이터가 다운로드되었습니다');
+}
+
+function deleteUser() {
+    if (confirm('정말 이 사용자를 삭제하시겠습니까?')) {
+        DataManager.deleteUser(selectedUserId);
+        showScreen('admin-dashboard');
+        showToast('사용자가 삭제되었습니다');
+    }
+}
+
+function adminLogout() {
+    AppState.isAdmin = false;
+    showScreen('role-select');
+}
+
+function backToAdminDashboard() {
+    showScreen('admin-dashboard');
+}
+
+// ============================================
+// 유틸리티
+// ============================================
+function showToast(message) {
+    // 기존 토스트 제거
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 24px;
+        font-size: 14px;
+        z-index: 1000;
+        animation: fadeIn 0.3s ease;
+    `;
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 2500);
+}
+
+// CSS 애니메이션 추가
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+
+// ============================================
+// 초기화
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    // 데이터 초기화
+    DataManager.init();
+
+    // 시작 화면 표시
+    showScreen('role-select');
+
+    // 키보드 접근성
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const currentScreen = AppState.currentScreen;
+            if (currentScreen !== 'role-select' && currentScreen !== 'home') {
+                goHome();
+            }
+        }
+    });
+});

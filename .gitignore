@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+.Spotlight-V100
+.Trashes
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log

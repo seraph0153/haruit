@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="하루잇 - AI 기반 행동 유도 돌봄 앱. 초고령사회 시니어를 위한 일상 참여 유도 앱입니다.">
+    <meta name="theme-color" content="#4A90E2">
+    <title>하루잇(HARUIT) - 오늘의 한 걸음</title>
+    
+    <!-- Pretendard 폰트 -->
+    <link rel="stylesheet" as="style" crossorigin 
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- ============================================
+             화면 1: 역할 선택
+             ============================================ -->
+        <section id="role-select" class="screen active">
+            <div class="flex-1 flex flex-col items-center justify-center">
+                <div class="text-center mb-lg">
+                    <div style="font-size: 64px; margin-bottom: 16px;">🌱</div>
+                    <h1 class="headline">하루잇</h1>
+                    <p class="subheadline">오늘의 작은 한 걸음을 함께해요</p>
+                </div>
+                
+                <div class="flex flex-col gap-md" style="width: 100%; max-width: 320px;">
+                    <button class="btn btn-primary btn-lg btn-full" onclick="selectRole('user')">
+                        👤 사용자 모드
+                    </button>
+                    <button class="btn btn-outline btn-lg btn-full" onclick="selectRole('admin')">
+                        🏢 기관 관리자 모드
+                    </button>
+                </div>
+            </div>
+            
+            <div class="text-center mt-auto" style="padding-bottom: 24px;">
+                <span class="badge badge-privacy">🔒 프라이버시 보호</span>
+                <p class="text-muted mt-sm" style="font-size: 14px;">
+                    사진/영상은 저장되지 않아요
+                </p>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 2: 사용자 설정 (첫 사용)
+             ============================================ -->
+        <section id="user-setup" class="screen">
+            <div class="flex-1 flex flex-col items-center justify-center">
+                <div class="text-center mb-xl">
+                    <div style="font-size: 48px; margin-bottom: 16px;">👋</div>
+                    <h2 class="headline">반가워요!</h2>
+                    <p class="subheadline">어떻게 불러드릴까요?</p>
+                </div>
+                
+                <div style="width: 100%; max-width: 320px;">
+                    <div class="input-group">
+                        <input type="text" 
+                               id="user-name-input" 
+                               class="input" 
+                               placeholder="이름을 입력해주세요"
+                               maxlength="20"
+                               aria-label="이름 입력">
+                    </div>
+                    
+                    <button class="btn btn-primary btn-lg btn-full" onclick="setupUser()">
+                        시작하기 ✨
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 3: 홈 화면
+             ============================================ -->
+        <section id="home" class="screen">
+            <div class="flex-1 flex flex-col">
+                <!-- 헤더 -->
+                <div class="text-center mb-lg" style="padding-top: 24px;">
+                    <p class="text-muted mb-sm">안녕하세요, <span id="home-user-name">사용자</span>님</p>
+                    <h1 class="headline" style="font-size: 28px; line-height: 1.4;">
+                        오늘, 작은 한 걸음만<br>남겨볼까요?
+                    </h1>
+                    <p class="subheadline" style="margin-top: 12px;">
+                        지금 이 공간에서 할 수 있는<br>
+                        가장 부담 없는 행동 하나를<br>
+                        함께 찾아드릴게요.
+                    </p>
+                </div>
+                
+                <!-- 프라이버시 배지 -->
+                <div class="text-center mb-lg">
+                    <span class="badge badge-privacy">🔒 사진은 저장하지 않아요</span>
+                </div>
+                
+                <!-- 통계 카드 -->
+                <div class="stats-grid mb-xl">
+                    <div class="stat-card">
+                        <div class="stat-value" id="consecutive-days">0</div>
+                        <div class="stat-label">연속 사용 날</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="weekly-participation">0</div>
+                        <div class="stat-label">이번 주 참여</div>
+                    </div>
+                </div>
+                
+                <!-- CTA 버튼 -->
+                <div class="flex flex-col gap-md mt-auto" style="padding-bottom: 24px;">
+                    <button class="btn btn-primary btn-lg btn-full" onclick="startMission()">
+                        지금 한 번 해볼까요 🌟
+                    </button>
+                    <button class="btn btn-ghost btn-full" onclick="takeRestDay()">
+                        오늘은 쉬어갈게요 😌
+                    </button>
+                    <p class="text-center text-muted" style="font-size: 14px;">
+                        쉬는 날도 기록이 됩니다
+                    </p>
+                </div>
+            </div>
+            
+            <!-- 하단 네비게이션 -->
+            <nav class="flex justify-between" style="padding: 16px; border-top: 1px solid #E0E0E0;">
+                <button class="btn btn-ghost" style="flex: 1;" onclick="showScreen('home')">
+                    🏠 홈
+                </button>
+                <button class="btn btn-ghost" style="flex: 1;" onclick="showScreen('records')">
+                    📅 기록
+                </button>
+                <button class="btn btn-ghost" style="flex: 1;" onclick="showScreen('role-select')">
+                    ⚙️ 설정
+                </button>
+            </nav>
+        </section>
+        
+        <!-- ============================================
+             화면 4: 거동 상태 선택
+             ============================================ -->
+        <section id="mobility-select" class="screen">
+            <div class="flex-1 flex flex-col">
+                <div class="text-center mb-lg" style="padding-top: 24px;">
+                    <h2 class="headline">지금 거동 상태는 어떠세요?</h2>
+                    <p class="subheadline">가장 가까운 상태를 선택해주세요</p>
+                </div>
+                
+                <div class="radio-group">
+                    <label class="radio-card" data-mobility="seated" onclick="selectMobility('seated')">
+                        <input type="radio" name="mobility" value="seated">
+                        <span class="radio-indicator"></span>
+                        <span class="radio-icon">🪑</span>
+                        <div class="radio-content">
+                            <div class="radio-label">앉아서만 가능</div>
+                            <div class="radio-description">움직일 때 어려움이 있으신가요?</div>
+                        </div>
+                    </label>
+                    
+                    <label class="radio-card" data-mobility="limited" onclick="selectMobility('limited')">
+                        <input type="radio" name="mobility" value="limited">
+                        <span class="radio-indicator"></span>
+                        <span class="radio-icon">🚶</span>
+                        <div class="radio-content">
+                            <div class="radio-label">제한적 이동 가능</div>
+                            <div class="radio-description">조금은 움직일 수 있으신가요?</div>
+                        </div>
+                    </label>
+                    
+                    <label class="radio-card" data-mobility="full" onclick="selectMobility('full')">
+                        <input type="radio" name="mobility" value="full">
+                        <span class="radio-indicator"></span>
+                        <span class="radio-icon">🏃</span>
+                        <div class="radio-content">
+                            <div class="radio-label">자유롭게 이동 가능</div>
+                            <div class="radio-description">문제없이 이동하실 수 있으신가요?</div>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="mt-auto" style="padding: 24px 0;">
+                    <button class="btn btn-primary btn-lg btn-full" onclick="confirmMobility()">
+                        다음으로 →
+                    </button>
+                    <button class="btn btn-ghost btn-full mt-md" onclick="goHome()">
+                        뒤로 가기
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 5: 환경 스캔 시뮬레이션
+             ============================================ -->
+        <section id="environment-scan" class="screen scan-screen">
+            <div class="flex-1 flex flex-col">
+                <div class="text-center" style="padding: 24px; color: white;">
+                    <h2 class="headline" style="color: white;">주변 환경 스캔</h2>
+                    <p id="scan-message" style="color: rgba(255,255,255,0.8);">
+                        버튼을 눌러 주변을 살펴볼게요
+                    </p>
+                </div>
+                
+                <div class="scan-viewfinder">
+                    <div class="scan-frame">
+                        <div class="scan-line" style="display: none;"></div>
+                    </div>
+                </div>
+                
+                <div class="scan-result" id="scan-result">
+                    <!-- 감지 결과가 여기에 표시됩니다 -->
+                </div>
+                
+                <div style="padding: 24px;">
+                    <button id="scan-btn" class="btn btn-primary btn-lg btn-full" onclick="startScan()">
+                        지금 스캔해볼까요 📸
+                    </button>
+                    <button id="scan-next-btn" class="btn btn-secondary btn-lg btn-full" 
+                            style="display: none;" onclick="confirmScan()">
+                        다음으로 →
+                    </button>
+                    <button class="btn btn-ghost btn-full mt-md" style="color: white;" onclick="goHome()">
+                        뒤로 가기
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 6: AI 미션 제안
+             ============================================ -->
+        <section id="mission-suggest" class="screen">
+            <div class="flex-1 flex flex-col items-center justify-center">
+                <div class="card card-lg card-warm text-center" style="max-width: 360px;">
+                    <p class="text-muted mb-sm">오늘의 미션</p>
+                    <p id="mission-environment" style="font-size: 24px; margin-bottom: 8px;">
+                        🪟 창문
+                    </p>
+                    <h2 id="mission-text" style="font-size: 24px; font-weight: 600; line-height: 1.4; color: var(--text-primary);">
+                        커튼을 5cm만 움직여볼까요?
+                    </h2>
+                </div>
+                
+                <div class="flex flex-col gap-md mt-xl" style="width: 100%; max-width: 320px;">
+                    <button class="btn btn-primary btn-lg btn-full" onclick="acceptMission()">
+                        지금 해볼게요 ✨
+                    </button>
+                    <button id="mission-attempts-remaining" 
+                            class="btn btn-outline btn-full" onclick="requestNewMission()">
+                        다른 미션 원해요 (3회 남음)
+                    </button>
+                    <button class="btn btn-ghost btn-full" onclick="goHome()">
+                        나중에 할게요
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 7: AR 시뮬레이션
+             ============================================ -->
+        <section id="ar-simulation" class="screen ar-screen">
+            <div class="flex-1 flex flex-col">
+                <div class="ar-mission-text" id="ar-mission-text">
+                    커튼을 5cm만 움직여볼까요?
+                </div>
+                
+                <div class="ar-visual flex-1">
+                    <div class="ar-particles"></div>
+                    <div class="ar-arrow">↑</div>
+                </div>
+                
+                <p class="text-center text-secondary mb-lg">
+                    화면의 화살표를 따라 움직여보세요
+                </p>
+                
+                <!-- 스몰토크 옵션 -->
+                <div class="card text-center mb-md" style="background: #FFF5F5;">
+                    <p class="mb-sm" style="font-weight: 500;">주변에 누군가 계신가요?</p>
+                    <div class="flex gap-sm justify-center">
+                        <button class="btn btn-sm btn-outline" onclick="hasSomeoneNearby(true)">
+                            네, 있어요 👥
+                        </button>
+                        <button class="btn btn-sm btn-ghost" onclick="hasSomeoneNearby(false)">
+                            아니요, 혼자예요
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col gap-md" style="padding: 16px;">
+                    <button class="btn btn-success btn-lg btn-full" onclick="completeMission(true)">
+                        완료했어요 ✨
+                    </button>
+                    <button class="btn btn-ghost btn-full" onclick="completeMission(false)">
+                        못 했어요
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 8: 스몰토크 - 주변 확인
+             ============================================ -->
+        <section id="smalltalk-check" class="screen smalltalk-screen">
+            <div class="flex-1 flex flex-col items-center justify-center">
+                <div style="font-size: 64px; margin-bottom: 24px;">👥</div>
+                <h2 class="headline text-center">주변에 누군가 계신가요?</h2>
+                <p class="subheadline text-center">
+                    함께 있는 분과 따뜻한 대화를<br>나눠보는 건 어떨까요?
+                </p>
+                
+                <div class="flex flex-col gap-md mt-xl" style="width: 100%; max-width: 320px;">
+                    <button class="btn btn-warm btn-lg btn-full" onclick="hasSomeoneNearby(true)">
+                        네, 있어요 👥
+                    </button>
+                    <button class="btn btn-outline btn-full" onclick="hasSomeoneNearby(false)">
+                        아니요, 혼자예요
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 9: 스몰토크 - 질문 표시
+             ============================================ -->
+        <section id="smalltalk-question" class="screen smalltalk-screen">
+            <div class="flex-1 flex flex-col">
+                <div class="text-center" style="padding-top: 48px;">
+                    <p class="text-muted mb-sm">💬 누군가와 대화해보세요</p>
+                    <p class="subheadline">주변에 계신 분에게 물어봐주세요</p>
+                </div>
+                
+                <div class="flex-1 flex items-center justify-center">
+                    <div class="smalltalk-question" id="smalltalk-question-text">
+                        "오늘 날씨 어떠세요?"
+                    </div>
+                </div>
+                
+                <div class="flex flex-col gap-md" style="padding: 24px;">
+                    <button class="btn btn-warm btn-lg btn-full" onclick="acceptSmallTalkQuestion()">
+                        이 질문을 해볼게요 💬
+                    </button>
+                    <button id="smalltalk-attempts-remaining" 
+                            class="btn btn-outline btn-full" onclick="requestNewSmallTalkQuestion()">
+                        다른 질문 원해요 (3회 남음)
+                    </button>
+                    <button class="btn btn-ghost btn-full" onclick="skipSmallTalk()">
+                        혼자 있어서 할 수 없어요
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 10: 스몰토크 - 응답 입력
+             ============================================ -->
+        <section id="smalltalk-response" class="screen smalltalk-screen">
+            <div class="flex-1 flex flex-col">
+                <div class="text-center" style="padding-top: 48px;">
+                    <p class="text-muted mb-md">물어본 질문</p>
+                    <p id="smalltalk-response-question" 
+                       style="font-size: 20px; font-weight: 600; padding: 0 24px;">
+                        "오늘 날씨 어떠세요?"
+                    </p>
+                </div>
+                
+                <div style="padding: 24px; flex: 1;">
+                    <label class="input-label">상대방의 답변을 적어주세요 (선택)</label>
+                    <textarea id="smalltalk-response-input" 
+                              class="input" 
+                              placeholder="답변을 적어주세요..."
+                              rows="4"></textarea>
+                </div>
+                
+                <div class="flex flex-col gap-md" style="padding: 24px;">
+                    <button class="btn btn-success btn-lg btn-full" onclick="completeSmallTalk()">
+                        질문 완료했어요 ✨
+                    </button>
+                    <button class="btn btn-ghost btn-full" onclick="cancelSmallTalk()">
+                        아직 안 했어요
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 11: 보상 화면
+             ============================================ -->
+        <section id="reward" class="screen reward-screen">
+            <div class="reward-icon" id="reward-icon">🌟</div>
+            <h2 class="reward-message" id="reward-message">
+                오늘의 한 걸음이 남았습니다
+            </h2>
+            <p class="reward-submessage" id="reward-submessage">
+                작은 움직임이 큰 변화를 만들어요 ✨
+            </p>
+            <button class="btn btn-primary btn-lg" onclick="goHome()">
+                홈으로 돌아가기
+            </button>
+        </section>
+        
+        <!-- ============================================
+             화면 12: 기록 화면
+             ============================================ -->
+        <section id="records" class="screen">
+            <div class="flex-1 flex flex-col">
+                <h2 class="headline" style="padding-top: 24px;">📅 나의 기록</h2>
+                
+                <!-- 달력 -->
+                <div class="calendar mt-md">
+                    <div class="calendar-header">
+                        <div class="calendar-nav">
+                            <button onclick="prevMonth()" aria-label="이전 달">←</button>
+                        </div>
+                        <div class="calendar-title" id="calendar-title">2025년 1월</div>
+                        <div class="calendar-nav">
+                            <button onclick="nextMonth()" aria-label="다음 달">→</button>
+                        </div>
+                    </div>
+                    <div class="calendar-weekdays">
+                        <div>일</div>
+                        <div>월</div>
+                        <div>화</div>
+                        <div>수</div>
+                        <div>목</div>
+                        <div>금</div>
+                        <div>토</div>
+                    </div>
+                    <div class="calendar-days" id="calendar-days">
+                        <!-- 달력 날짜가 여기에 렌더링됩니다 -->
+                    </div>
+                </div>
+                
+                <!-- 월간 통계 -->
+                <div class="stats-grid mt-lg">
+                    <div class="stat-card">
+                        <div class="stat-value" id="monthly-rate">0%</div>
+                        <div class="stat-label">참여율</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="monthly-count">0일</div>
+                        <div class="stat-label">총 참여</div>
+                    </div>
+                </div>
+                
+                <!-- 최근 활동 -->
+                <div class="mt-lg">
+                    <h3 style="font-weight: 600; margin-bottom: 12px;">최근 활동</h3>
+                    <div id="recent-activities">
+                        <!-- 최근 활동이 여기에 렌더링됩니다 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 하단 네비게이션 -->
+            <nav class="flex justify-between" style="padding: 16px; border-top: 1px solid #E0E0E0;">
+                <button class="btn btn-ghost" style="flex: 1;" onclick="showScreen('home')">
+                    🏠 홈
+                </button>
+                <button class="btn btn-ghost" style="flex: 1; color: var(--color-primary);" onclick="showScreen('records')">
+                    📅 기록
+                </button>
+                <button class="btn btn-ghost" style="flex: 1;" onclick="showScreen('role-select')">
+                    ⚙️ 설정
+                </button>
+            </nav>
+        </section>
+        
+        <!-- ============================================
+             화면 13: 관리자 로그인
+             ============================================ -->
+        <section id="admin-login" class="screen">
+            <div class="flex-1 flex flex-col items-center justify-center">
+                <div class="text-center mb-xl">
+                    <div style="font-size: 48px; margin-bottom: 16px;">🔐</div>
+                    <h2 class="headline">관리자 로그인</h2>
+                    <p class="subheadline">비밀번호를 입력해주세요</p>
+                </div>
+                
+                <div style="width: 100%; max-width: 320px;">
+                    <div class="input-group">
+                        <input type="password" 
+                               id="admin-password" 
+                               class="input" 
+                               placeholder="비밀번호"
+                               aria-label="관리자 비밀번호">
+                    </div>
+                    
+                    <button class="btn btn-primary btn-lg btn-full" onclick="adminLogin()">
+                        로그인
+                    </button>
+                    <button class="btn btn-ghost btn-full mt-md" onclick="showScreen('role-select')">
+                        뒤로 가기
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 14: 관리자 대시보드
+             ============================================ -->
+        <section id="admin-dashboard" class="screen">
+            <div class="admin-header">
+                <div class="admin-title">🏢 관리자 대시보드</div>
+                <button class="btn btn-sm btn-ghost" style="color: white;" onclick="adminLogout()">
+                    로그아웃
+                </button>
+            </div>
+            
+            <div class="flex-1" style="overflow-y: auto;">
+                <!-- 전체 통계 -->
+                <div class="stats-grid mb-lg">
+                    <div class="stat-card">
+                        <div class="stat-value" id="admin-total-users">0</div>
+                        <div class="stat-label">총 사용자</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="admin-today-participants">0</div>
+                        <div class="stat-label">오늘 참여</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="admin-weekly-rate">0%</div>
+                        <div class="stat-label">주간 참여율</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="admin-new-users">0</div>
+                        <div class="stat-label">신규 가입</div>
+                    </div>
+                </div>
+                
+                <!-- 검색 -->
+                <div class="search-bar">
+                    <input type="text" 
+                           id="admin-search" 
+                           class="search-input" 
+                           placeholder="사용자 검색..."
+                           oninput="searchUsers()">
+                </div>
+                
+                <!-- 사용자 목록 -->
+                <div class="user-list" id="admin-user-list">
+                    <!-- 사용자 카드가 여기에 렌더링됩니다 -->
+                </div>
+                
+                <!-- 데이터 내보내기 -->
+                <div class="mt-lg">
+                    <button class="btn btn-outline btn-full" onclick="exportAllData()">
+                        📥 전체 데이터 내보내기 (CSV)
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- ============================================
+             화면 15: 사용자 상세 보기
+             ============================================ -->
+        <section id="admin-user-detail" class="screen">
+            <div class="admin-header">
+                <button class="btn btn-sm btn-ghost" style="color: white;" onclick="backToAdminDashboard()">
+                    ← 뒤로
+                </button>
+                <div class="admin-title" id="detail-user-name">사용자</div>
+                <div style="width: 60px;"></div>
+            </div>
+            
+            <div class="flex-1" style="overflow-y: auto;">
+                <p class="text-muted text-center mb-lg" id="detail-user-joindate">
+                    가입일: 2025-01-01
+                </p>
+                
+                <!-- 기본 통계 -->
+                <h3 class="mb-sm" style="font-weight: 600;">📊 참여 통계</h3>
+                <div class="stats-grid mb-lg">
+                    <div class="stat-card">
+                        <div class="stat-value" id="detail-total-days">0</div>
+                        <div class="stat-label">총 참여일</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="detail-monthly-rate">0%</div>
+                        <div class="stat-label">월간 참여율</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="detail-consecutive">0</div>
+                        <div class="stat-label">연속 참여</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="detail-completion-rate">0%</div>
+                        <div class="stat-label">완료율</div>
+                    </div>
+                </div>
+                
+                <!-- 스몰토크 통계 -->
+                <h3 class="mb-sm" style="font-weight: 600;">💬 스몰토크 통계</h3>
+                <div class="card mb-lg">
+                    <div class="flex justify-between mb-sm">
+                        <span>참여 횟수</span>
+                        <span class="text-primary" style="font-weight: 600;" id="detail-smalltalk-count">0</span>
+                    </div>
+                    <div class="flex justify-between mb-sm">
+                        <span>완료율</span>
+                        <span class="text-primary" style="font-weight: 600;" id="detail-smalltalk-rate">0%</span>
+                    </div>
+                    <div>
+                        <span class="text-muted" style="font-size: 14px;">가장 자주 받은 질문:</span>
+                        <p id="detail-frequent-question" style="font-weight: 500; margin-top: 4px;">없음</p>
+                    </div>
+                </div>
+                
+                <!-- 선호 미션 유형 -->
+                <h3 class="mb-sm" style="font-weight: 600;">🎯 선호 미션 유형</h3>
+                <div class="card mb-lg" id="preferred-missions">
+                    <!-- 선호 미션이 여기에 렌더링됩니다 -->
+                </div>
+                
+                <!-- 월별 참여 차트 -->
+                <h3 class="mb-sm" style="font-weight: 600;">📈 월별 참여 추이</h3>
+                <div class="card mb-lg">
+                    <div class="chart-container">
+                        <div class="bar-chart" id="monthly-chart">
+                            <!-- 차트가 여기에 렌더링됩니다 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 최근 활동 -->
+                <h3 class="mb-sm" style="font-weight: 600;">📋 최근 활동</h3>
+                <div id="detail-activities" class="mb-lg">
+                    <!-- 활동 테이블이 여기에 렌더링됩니다 -->
+                </div>
+                
+                <!-- 액션 버튼 -->
+                <div class="flex flex-col gap-sm mb-lg">
+                    <button class="btn btn-outline btn-full" onclick="exportUserData()">
+                        📥 사용자 데이터 내보내기
+                    </button>
+                    <button class="btn btn-ghost btn-full text-error" onclick="deleteUser()">
+                        🗑️ 사용자 삭제
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+    </div>
+    
+    <!-- 스크립트 -->
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
