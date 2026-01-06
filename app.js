@@ -279,7 +279,7 @@ async function captureAndAnalyze() {
 
     if (!video || !canvas) return;
 
-    // 1. 캡처 (비디오 정지 효과)
+    // 1. 캡처
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
@@ -288,57 +288,85 @@ async function captureAndAnalyze() {
     video.style.display = 'none';
     canvas.style.display = 'block';
 
-    // 2. UI 변경 (분석 중)
+    // 2. UI 변경
     if (captureBtn) captureBtn.style.display = 'none';
     if (scanLine) scanLine.style.display = 'block';
     if (overlayText) {
-        overlayText.textContent = "사진을 분석하고 있어요...";
+        overlayText.textContent = "AI가 주변을 살펴보고 있어요...";
         overlayText.style.opacity = 1;
     }
     scanMessage.textContent = '잠시만 기다려주세요...';
 
     // 3. AI 분석
     try {
-        // 약간의 딜레이로 UX 강화
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 800));
 
-        const predictions = await detectObjects(canvas); // 이제 객체 배열 반환 ({id, bbox, score})
+        const predictions = await detectObjects(canvas);
+
+        // 매핑 정의
+        const map = {
+            'chair': 'chair', 'couch': 'chair', 'bench': 'chair', 'sofa': 'chair',
+            'cup': 'cup', 'bottle': 'cup', 'glass': 'cup', 'wine glass': 'cup', 'bowl': 'cup',
+            'dining table': 'table', 'desk': 'table',
+            'bed': 'bed'
+        };
+
+        const validIds = new Set();
+        const seenLabels = new Set();
 
         // Bounding Box 그리기
         if (predictions && predictions.length > 0) {
             ctx.lineWidth = 4;
-            ctx.font = '18px sans-serif';
+            ctx.font = 'bold 20px Pretendard';
 
             predictions.forEach(p => {
                 const [x, y, width, height] = p.bbox;
+                const isMapped = map[p.class];
 
-                // 박스 그리기
-                ctx.strokeStyle = '#00FFFF'; // 시안색
+                // Mapped(Cyan), Unmapped(Orange)
+                const color = isMapped ? '#00FFFF' : '#FF9500';
+
+                // 박스
+                ctx.strokeStyle = color;
                 ctx.strokeRect(x, y, width, height);
 
-                // 라벨 배경
-                ctx.fillStyle = '#00FFFF';
+                // 라벨
+                ctx.fillStyle = color;
                 const textWidth = ctx.measureText(p.class).width;
-                ctx.fillRect(x, y, textWidth + 10, 25);
+                ctx.fillRect(x, y, textWidth + 20, 30);
 
-                // 라벨 텍스트
                 ctx.fillStyle = '#000000';
-                ctx.fillText(p.class, x + 5, y + 18);
+                ctx.fillText(p.class, x + 5, y + 22);
+
+                if (isMapped) validIds.add(map[p.class]);
+                seenLabels.add(p.class);
             });
         }
 
-        // 고유 ID 추출 (중복 제거)
-        const detectedIds = Array.from(new Set(predictions.map(p => p.id)));
+        const detectedIds = Array.from(validIds);
+
+        // 똑똑한 피드백 생성
+        let customMessage = null;
+        if (detectedIds.length === 0 && seenLabels.size > 0) {
+            // 인식은 했으나 게임 아이템이 아님
+            const labels = Array.from(seenLabels);
+            const example = labels[0]; // e.g., 'laptop'
+            customMessage = `오! [${example}]이(가) 보이네요? 하지만 운동을 위해 의자나 컵을 찾아볼까요?`;
+        }
+
+        // 박스가 그려진 상태를 잠시 보여줌 (1.5초)
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         // 4. 결과 표시
-        showScanResults(detectedIds);
+        showScanResults(detectedIds, customMessage);
 
     } catch (err) {
         console.error("Analysis error:", err);
-        showScanResults([]); // 실패 시 랜덤 목록 표시
+        showScanResults([], "죄송해요, 눈이 침침하네요. 다시 한 번 찍어주실래요?");
     }
 }
-function showScanResults(detectedIds) {
+// 결과 표시 로직
+function showScanResults(detectedIds, customMessage) {
     const scanLine = document.querySelector('.scan-line');
     const overlayText = document.querySelector('.scan-overlay-text');
     const resultContainer = document.getElementById('scan-result-container');
@@ -358,16 +386,24 @@ function showScanResults(detectedIds) {
         displayEnvs = [...detectedEnvs];
 
         // 대화형 메시지 생성
-        const mainItem = displayEnvs[0].name;
-        const messages = [
-            `오! 여기에 ${mainItem}이(가) 있군요!`,
-            `${mainItem}을(를) 발견했어요! 이걸로 운동해볼까요?`,
-            `${mainItem}이(가) 보이네요. 아주 좋아요!`
-        ];
-        scanMessage.textContent = messages[Math.floor(Math.random() * messages.length)];
+        if (customMessage) {
+            scanMessage.textContent = customMessage;
+        } else {
+            const mainItem = displayEnvs[0].name;
+            const messages = [
+                `오! 여기에 ${mainItem}이(가) 있군요!`,
+                `${mainItem}을(를) 발견했어요! 이걸로 운동해볼까요?`,
+                `${mainItem}이(가) 보이네요. 아주 좋아요!`
+            ];
+            scanMessage.textContent = messages[Math.floor(Math.random() * messages.length)];
+        }
 
     } else {
-        scanMessage.textContent = '특별한 물건은 안 보이지만, 이 공간도 괜찮아요!';
+        if (customMessage) {
+            scanMessage.textContent = customMessage;
+        } else {
+            scanMessage.textContent = '특별한 물건은 안 보이지만, 이 공간도 괜찮아요!';
+        }
     }
 
     // 나머지 채우기
@@ -424,26 +460,9 @@ async function detectObjects(videoElement) {
         const predictions = await AppState.objectDetectionModel.detect(videoElement);
         console.log("Predictions:", predictions);
 
-        const map = {
-            'chair': 'chair', 'couch': 'chair', 'bench': 'chair', 'sofa': 'chair',
-            'cup': 'cup', 'bottle': 'cup', 'glass': 'cup', 'wine glass': 'cup', 'bowl': 'cup',
-            'dining table': 'table', 'desk': 'table',
-            'bed': 'bed'
-        };
+        // 50% 이상 정확도만 반환
+        return predictions.filter(p => p.score > 0.5);
 
-        const validPredictions = [];
-        predictions.forEach(p => {
-            if (p.score > 0.5 && map[p.class]) {
-                validPredictions.push({
-                    id: map[p.class],
-                    bbox: p.bbox,
-                    score: p.score,
-                    class: p.class // original class name
-                });
-            }
-        });
-
-        return validPredictions;
     } catch (e) {
         console.error("Detection error:", e);
         return [];
