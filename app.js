@@ -213,10 +213,12 @@ async function startCamera() {
         const videoElement = document.getElementById('camera-feed');
         if (videoElement) {
             videoElement.srcObject = stream;
+            videoElement.play();
         }
 
-        // 메시지 업데이트
-        document.getElementById('scan-message').textContent = '버튼을 눌러 주변을 살펴볼게요';
+        // UI 초기화
+        resetCameraUI();
+
     } catch (err) {
         console.error("카메라 접근 오류:", err);
         document.getElementById('scan-message').textContent = '카메라를 켤 수 없어요 (설정에서 권한을 확인해주세요)';
@@ -225,106 +227,147 @@ async function startCamera() {
 }
 
 function stopCamera() {
-    AppState.stopCamera();
-}
-
-function startScan() {
-    // 카메라가 안 켜져 있으면 켜기 시도
-    if (!AppState.cameraStream) {
-        startCamera().then(() => {
-            if (AppState.cameraStream) performScan();
-        });
-    } else {
-        performScan();
+    if (AppState.cameraStream) {
+        AppState.cameraStream.getTracks().forEach(track => track.stop());
+        AppState.cameraStream = null;
     }
 }
 
-function performScan() {
-    const scanBtn = document.getElementById('scan-btn');
-    const scanLine = document.querySelector('.scan-line');
+// UI 상태 초기화 (촬영 준비)
+function resetCameraUI() {
+    const video = document.getElementById('camera-feed');
+    const canvas = document.getElementById('capture-canvas');
+    const resultContainer = document.getElementById('scan-result-container');
+    const captureBtn = document.getElementById('capture-btn');
+    const retakeBtn = document.getElementById('retake-btn');
     const scanMessage = document.getElementById('scan-message');
+    const scanLine = document.querySelector('.scan-line');
+    const overlayText = document.querySelector('.scan-overlay-text');
+
+    if (video) video.style.display = 'block';
+    if (canvas) canvas.style.display = 'none';
+    if (resultContainer) resultContainer.style.display = 'none';
+
+    if (captureBtn) captureBtn.style.display = 'block';
+    if (retakeBtn) retakeBtn.style.display = 'none';
+
+    if (scanLine) scanLine.style.display = 'none';
+    if (overlayText) overlayText.style.opacity = 0;
+
+    if (scanMessage) scanMessage.textContent = '카메라로 주변을 비춰주세요';
+}
+
+// 재촬영
+function resetCamera() {
+    resetCameraUI();
+    // 비디오 재생 재개
+    const video = document.getElementById('camera-feed');
+    if (video) video.play();
+}
+
+
+// 촬영 및 분석
+async function captureAndAnalyze() {
+    const video = document.getElementById('camera-feed');
+    const canvas = document.getElementById('capture-canvas');
+    const captureBtn = document.getElementById('capture-btn');
+    const scanMessage = document.getElementById('scan-message');
+    const scanLine = document.querySelector('.scan-line');
     const overlayText = document.querySelector('.scan-overlay-text');
     const resultContainer = document.getElementById('scan-result-container');
     const scanResult = document.getElementById('scan-result');
-    const video = document.getElementById('camera-feed');
 
-    // 초기화
-    if (resultContainer) resultContainer.style.display = 'none';
-    if (scanBtn) scanBtn.style.display = 'none';
+    if (!video || !canvas) return;
 
-    // 스캔 애니메이션 시작
+    // 1. 캡처 (비디오 정지 효과)
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    video.style.display = 'none';
+    canvas.style.display = 'block';
+
+    // 2. UI 변경 (분석 중)
+    if (captureBtn) captureBtn.style.display = 'none';
     if (scanLine) scanLine.style.display = 'block';
     if (overlayText) {
-        overlayText.textContent = "공간을 분석하고 있어요...";
+        overlayText.textContent = "사진을 분석하고 있어요...";
         overlayText.style.opacity = 1;
     }
-    scanMessage.textContent = '잠시만 그대로 있어주세요...';
+    scanMessage.textContent = '잠시만 기다려주세요...';
 
-    // 실제 AI 분석 실행
-    detectObjects(video).then(detectedIds => {
-        // 스캔 라인 숨기기
-        if (scanLine) scanLine.style.display = 'none';
-        if (overlayText) overlayText.style.opacity = 0;
+    // 3. AI 분석
+    try {
+        // 약간의 딜레이로 UX 강화
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        let displayEnvs = [];
+        const detectedIds = await detectObjects(canvas); // 캔버스 이미지 분석
 
-        // 1. 감지된 환경이 있으면 우선 추가
-        if (detectedIds && detectedIds.length > 0) {
-            const detectedEnvs = ENVIRONMENTS.filter(e => detectedIds.includes(e.id));
-            displayEnvs = [...detectedEnvs];
+        // 4. 결과 표시
+        showScanResults(detectedIds);
 
-            scanMessage.textContent = `오! ${displayEnvs[0].name}${displayEnvs.length > 1 ? ' 등' : ''}을(를) 찾았어요!`;
-        }
+    } catch (err) {
+        console.error("Analysis error:", err);
+        showScanResults([]); // 실패 시 랜덤 목록 표시
+    }
+}
 
-        // 2. 나머지는 랜덤으로 채워서 4개 맞추기
-        const currentIds = displayEnvs.map(e => e.id);
-        const remaining = ENVIRONMENTS.filter(e => !currentIds.includes(e.id));
-        const shuffled = remaining.sort(() => Math.random() - 0.5);
+// 결과 표시 로직
+function showScanResults(detectedIds) {
+    const scanLine = document.querySelector('.scan-line');
+    const overlayText = document.querySelector('.scan-overlay-text');
+    const resultContainer = document.getElementById('scan-result-container');
+    const scanResult = document.getElementById('scan-result');
+    const scanMessage = document.getElementById('scan-message');
+    const retakeBtn = document.getElementById('retake-btn');
 
-        while (displayEnvs.length < 4 && shuffled.length > 0) {
-            displayEnvs.push(shuffled.pop());
-        }
+    // 분석 UI 숨기기
+    if (scanLine) scanLine.style.display = 'none';
+    if (overlayText) overlayText.style.opacity = 0;
 
-        // 안전장치
-        if (displayEnvs.length === 0) {
-            displayEnvs = ENVIRONMENTS.slice(0, 4);
-        }
+    let displayEnvs = [];
 
-        if (!detectedIds || detectedIds.length === 0) {
-            scanMessage.textContent = '가장 편안한 위치를 선택해주세요';
-        }
+    // 감지 결과 매핑
+    if (detectedIds && detectedIds.length > 0) {
+        const detectedEnvs = ENVIRONMENTS.filter(e => detectedIds.includes(e.id));
+        displayEnvs = [...detectedEnvs];
+        scanMessage.textContent = `사진에서 ${displayEnvs[0].name}${displayEnvs.length > 1 ? ' 등을' : '을(를)'} 찾았어요!`;
+    } else {
+        scanMessage.textContent = '사진 속 환경을 선택해주세요';
+    }
 
-        AppState.detectedEnvironments = displayEnvs;
+    // 나머지 채우기
+    const currentIds = displayEnvs.map(e => e.id);
+    const remaining = ENVIRONMENTS.filter(e => !currentIds.includes(e.id));
+    const shuffled = remaining.sort(() => Math.random() - 0.5);
 
-        // UI 렌더링
-        scanResult.innerHTML = displayEnvs.map(env => {
-            const isDetected = detectedIds && detectedIds.includes(env.id);
-            const badge = isDetected ? '<span style="position:absolute; top:-10px; right:-10px; background:#FFD700; color:black; font-size:12px; padding:4px 8px; border-radius:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">AI 추천</span>' : '';
-            const borderStyle = isDetected ? 'border: 2px solid #FFD700; background: rgba(255, 215, 0, 0.2);' : '';
+    while (displayEnvs.length < 4 && shuffled.length > 0) {
+        displayEnvs.push(shuffled.pop());
+    }
 
-            return `
-            <div class="scan-item" style="position:relative; ${borderStyle}" onclick="selectEnvironment('${env.id}')">
-                ${badge}
-                <span class="scan-item-icon">${env.icon}</span>
-                <span class="scan-item-name">${env.name}</span>
-            </div>`;
-        }).join('');
+    // 안전장치
+    if (displayEnvs.length === 0) displayEnvs = ENVIRONMENTS.slice(0, 4);
 
-        if (resultContainer) resultContainer.style.display = 'flex';
+    AppState.detectedEnvironments = displayEnvs;
 
-    }).catch(err => {
-        console.error("Scan error:", err);
-        const fallback = ENVIRONMENTS.slice(0, 4);
-        AppState.detectedEnvironments = fallback;
-        scanResult.innerHTML = fallback.map(env => `
-            <div class="scan-item" onclick="selectEnvironment('${env.id}')">
-                <span class="scan-item-icon">${env.icon}</span>
-                <span class="scan-item-name">${env.name}</span>
-            </div>
-        `).join('');
-        if (resultContainer) resultContainer.style.display = 'flex';
-        scanMessage.textContent = '원하는 위치를 선택해주세요';
-    });
+    // 리스트 렌더링
+    scanResult.innerHTML = displayEnvs.map(env => {
+        const isDetected = detectedIds && detectedIds.includes(env.id);
+        const badge = isDetected ? '<span style="position:absolute; top:-10px; right:-10px; background:#FFD700; color:black; font-size:12px; padding:4px 8px; border-radius:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">추천</span>' : '';
+        const borderStyle = isDetected ? 'border: 2px solid #FFD700; background: rgba(255, 215, 0, 0.2);' : '';
+
+        return `
+        <div class="scan-item" style="position:relative; ${borderStyle}" onclick="selectEnvironment('${env.id}')">
+            ${badge}
+            <span class="scan-item-icon">${env.icon}</span>
+            <span class="scan-item-name">${env.name}</span>
+        </div>`;
+    }).join('');
+
+    // 결과창 및 재촬영 버튼 표시
+    if (resultContainer) resultContainer.style.display = 'flex';
+    if (retakeBtn) retakeBtn.style.display = 'block';
 }
 
 // TensorFLow.js 감지 로직

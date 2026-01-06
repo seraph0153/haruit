@@ -206,30 +206,39 @@
                 <div class="scan-viewfinder">
                     <!-- 실제 카메라 비디오 -->
                     <video id="camera-feed" autoplay playsinline muted></video>
+                    <!-- 캡처용 캔버스 (숨김 상태로 시작) -->
+                    <canvas id="capture-canvas"
+                        style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;"></canvas>
 
                     <div class="scan-frame">
                         <div class="scan-line" style="display: none;"></div>
                         <div class="scan-overlay-text">분석 중...</div>
                     </div>
-                </div>
 
-                <!-- 스캔 결과 (선택지) -->
-                <div class="scan-result-container" id="scan-result-container" style="display: none;">
-                    <p class="text-center mb-md" style="color: white;">
-                        발견된 환경 중 하나를 선택해주세요
-                    </p>
-                    <div class="scan-result" id="scan-result">
-                        <!-- 감지 결과 버튼들이 여기에 표시됩니다 -->
+                    <!-- 스캔 결과 표시 영역 (중앙 모달 형태) -->
+                    <div class="scan-result-container" id="scan-result-container" style="display: none;">
+                        <h3 style="color:white; margin-bottom:20px; text-shadow:0 1px 2px rgba(0,0,0,0.8);">무엇을 발견했나요?
+                        </h3>
+                        <div class="scan-result" id="scan-result">
+                            <!-- 감지 결과 버튼들이 여기에 표시됩니다 -->
+                        </div>
                     </div>
                 </div>
 
                 <div style="padding: 24px; z-index: 10;">
-                    <button id="scan-btn" class="btn btn-primary btn-lg btn-full" onclick="startScan()">
-                        지금 스캔해볼까요 📸
+                    <!-- 촬영 버튼 -->
+                    <button id="capture-btn" class="btn btn-primary btn-lg btn-full" onclick="captureAndAnalyze()">
+                        📸 촬영하기
                     </button>
-                    <!-- 다음 버튼 제거 (선택 시 바로 이동) -->
-                    <button class="btn btn-ghost btn-full mt-md"
-                        style="color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5);" onclick="goHome()">
+
+                    <!-- 재촬영 버튼 (숨김) -->
+                    <button id="retake-btn" class="btn btn-secondary btn-lg btn-full mb-md" onclick="resetCamera()"
+                        style="display: none;">
+                        🔄 다시 찍기
+                    </button>
+
+                    <button class="btn btn-ghost btn-full" style="color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5);"
+                        onclick="goHome()">
                         뒤로 가기
                     </button>
                 </div>
