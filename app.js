@@ -269,32 +269,36 @@ function performScan() {
         let displayEnvs = [];
 
         // 1. 감지된 환경이 있으면 우선 추가
-        if (detectedIds.length > 0) {
+        if (detectedIds && detectedIds.length > 0) {
             const detectedEnvs = ENVIRONMENTS.filter(e => detectedIds.includes(e.id));
             displayEnvs = [...detectedEnvs];
 
-            // "찾았다!" 메시지
-            scanMessage.textContent = `오! ${displayEnvs[0].name}${displayEnvs.length > 1 ? ' 등을' : '을(를)'} 찾았어요!`;
+            scanMessage.textContent = `오! ${displayEnvs[0].name}${displayEnvs.length > 1 ? ' 등' : ''}을(를) 찾았어요!`;
         }
 
-        // 2. 나머지는 랜덤으로 채워서 최소 4개 선택지 만들기
-        const remaining = ENVIRONMENTS.filter(e => !detectedIds.includes(e.id));
-        const shuffledRemaining = remaining.sort(() => Math.random() - 0.5);
+        // 2. 나머지는 랜덤으로 채워서 4개 맞추기
+        const currentIds = displayEnvs.map(e => e.id);
+        const remaining = ENVIRONMENTS.filter(e => !currentIds.includes(e.id));
+        const shuffled = remaining.sort(() => Math.random() - 0.5);
 
-        while (displayEnvs.length < 4) {
-            if (shuffledRemaining.length === 0) break;
-            displayEnvs.push(shuffledRemaining.pop());
+        while (displayEnvs.length < 4 && shuffled.length > 0) {
+            displayEnvs.push(shuffled.pop());
         }
 
-        if (detectedIds.length === 0) {
+        // 안전장치
+        if (displayEnvs.length === 0) {
+            displayEnvs = ENVIRONMENTS.slice(0, 4);
+        }
+
+        if (!detectedIds || detectedIds.length === 0) {
             scanMessage.textContent = '가장 편안한 위치를 선택해주세요';
         }
 
         AppState.detectedEnvironments = displayEnvs;
 
-        // 사용자에게 선택하도록 UI 표시
+        // UI 렌더링
         scanResult.innerHTML = displayEnvs.map(env => {
-            const isDetected = detectedIds.includes(env.id);
+            const isDetected = detectedIds && detectedIds.includes(env.id);
             const badge = isDetected ? '<span style="position:absolute; top:-10px; right:-10px; background:#FFD700; color:black; font-size:12px; padding:4px 8px; border-radius:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">AI 추천</span>' : '';
             const borderStyle = isDetected ? 'border: 2px solid #FFD700; background: rgba(255, 215, 0, 0.2);' : '';
 
@@ -307,6 +311,19 @@ function performScan() {
         }).join('');
 
         if (resultContainer) resultContainer.style.display = 'flex';
+
+    }).catch(err => {
+        console.error("Scan error:", err);
+        const fallback = ENVIRONMENTS.slice(0, 4);
+        AppState.detectedEnvironments = fallback;
+        scanResult.innerHTML = fallback.map(env => `
+            <div class="scan-item" onclick="selectEnvironment('${env.id}')">
+                <span class="scan-item-icon">${env.icon}</span>
+                <span class="scan-item-name">${env.name}</span>
+            </div>
+        `).join('');
+        if (resultContainer) resultContainer.style.display = 'flex';
+        scanMessage.textContent = '원하는 위치를 선택해주세요';
     });
 }
 
