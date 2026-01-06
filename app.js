@@ -302,7 +302,33 @@ async function captureAndAnalyze() {
         // 약간의 딜레이로 UX 강화
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        const detectedIds = await detectObjects(canvas); // 캔버스 이미지 분석
+        const predictions = await detectObjects(canvas); // 이제 객체 배열 반환 ({id, bbox, score})
+
+        // Bounding Box 그리기
+        if (predictions && predictions.length > 0) {
+            ctx.lineWidth = 4;
+            ctx.font = '18px sans-serif';
+
+            predictions.forEach(p => {
+                const [x, y, width, height] = p.bbox;
+
+                // 박스 그리기
+                ctx.strokeStyle = '#00FFFF'; // 시안색
+                ctx.strokeRect(x, y, width, height);
+
+                // 라벨 배경
+                ctx.fillStyle = '#00FFFF';
+                const textWidth = ctx.measureText(p.class).width;
+                ctx.fillRect(x, y, textWidth + 10, 25);
+
+                // 라벨 텍스트
+                ctx.fillStyle = '#000000';
+                ctx.fillText(p.class, x + 5, y + 18);
+            });
+        }
+
+        // 고유 ID 추출 (중복 제거)
+        const detectedIds = Array.from(new Set(predictions.map(p => p.id)));
 
         // 4. 결과 표시
         showScanResults(detectedIds);
@@ -312,8 +338,6 @@ async function captureAndAnalyze() {
         showScanResults([]); // 실패 시 랜덤 목록 표시
     }
 }
-
-// 결과 표시 로직
 function showScanResults(detectedIds) {
     const scanLine = document.querySelector('.scan-line');
     const overlayText = document.querySelector('.scan-overlay-text');
@@ -332,9 +356,18 @@ function showScanResults(detectedIds) {
     if (detectedIds && detectedIds.length > 0) {
         const detectedEnvs = ENVIRONMENTS.filter(e => detectedIds.includes(e.id));
         displayEnvs = [...detectedEnvs];
-        scanMessage.textContent = `사진에서 ${displayEnvs[0].name}${displayEnvs.length > 1 ? ' 등을' : '을(를)'} 찾았어요!`;
+
+        // 대화형 메시지 생성
+        const mainItem = displayEnvs[0].name;
+        const messages = [
+            `오! 여기에 ${mainItem}이(가) 있군요!`,
+            `${mainItem}을(를) 발견했어요! 이걸로 운동해볼까요?`,
+            `${mainItem}이(가) 보이네요. 아주 좋아요!`
+        ];
+        scanMessage.textContent = messages[Math.floor(Math.random() * messages.length)];
+
     } else {
-        scanMessage.textContent = '사진 속 환경을 선택해주세요';
+        scanMessage.textContent = '특별한 물건은 안 보이지만, 이 공간도 괜찮아요!';
     }
 
     // 나머지 채우기
@@ -398,14 +431,19 @@ async function detectObjects(videoElement) {
             'bed': 'bed'
         };
 
-        const found = new Set();
+        const validPredictions = [];
         predictions.forEach(p => {
             if (p.score > 0.5 && map[p.class]) {
-                found.add(map[p.class]);
+                validPredictions.push({
+                    id: map[p.class],
+                    bbox: p.bbox,
+                    score: p.score,
+                    class: p.class // original class name
+                });
             }
         });
 
-        return Array.from(found);
+        return validPredictions;
     } catch (e) {
         console.error("Detection error:", e);
         return [];
