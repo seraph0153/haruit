@@ -13,6 +13,10 @@ const AppState = {
     // 카메라 스트림
     cameraStream: null,
 
+    // AI 모델
+    objectDetectionModel: null,
+    isModelLoading: false,
+
     // 미션 진행 상태
     selectedMobility: null,
     detectedEnvironments: [],
@@ -242,6 +246,7 @@ function performScan() {
     const overlayText = document.querySelector('.scan-overlay-text');
     const resultContainer = document.getElementById('scan-result-container');
     const scanResult = document.getElementById('scan-result');
+    const video = document.getElementById('camera-feed');
 
     // 초기화
     if (resultContainer) resultContainer.style.display = 'none';
@@ -255,34 +260,86 @@ function performScan() {
     }
     scanMessage.textContent = '잠시만 그대로 있어주세요...';
 
-    // 2초 후 1차 분석 완료 (페이크)
-    setTimeout(() => {
-        if (overlayText) overlayText.textContent = "사물을 찾고 있어요...";
-    }, 1500);
-
-    // 3초 후 결과 표시
-    setTimeout(() => {
+    // 실제 AI 분석 실행
+    detectObjects(video).then(detectedIds => {
         // 스캔 라인 숨기기
         if (scanLine) scanLine.style.display = 'none';
         if (overlayText) overlayText.style.opacity = 0;
 
-        // 랜덤 환경 선택 (3개 고정)
-        const shuffled = [...ENVIRONMENTS].sort(() => Math.random() - 0.5);
-        const detected = shuffled.slice(0, 3);
-        AppState.detectedEnvironments = detected;
+        let displayEnvs = [];
+
+        // 1. 감지된 환경이 있으면 우선 추가
+        if (detectedIds.length > 0) {
+            const detectedEnvs = ENVIRONMENTS.filter(e => detectedIds.includes(e.id));
+            displayEnvs = [...detectedEnvs];
+
+            // "찾았다!" 메시지
+            scanMessage.textContent = `오! ${displayEnvs[0].name}${displayEnvs.length > 1 ? ' 등을' : '을(를)'} 찾았어요!`;
+        }
+
+        // 2. 나머지는 랜덤으로 채워서 최소 4개 선택지 만들기
+        const remaining = ENVIRONMENTS.filter(e => !detectedIds.includes(e.id));
+        const shuffledRemaining = remaining.sort(() => Math.random() - 0.5);
+
+        while (displayEnvs.length < 4) {
+            if (shuffledRemaining.length === 0) break;
+            displayEnvs.push(shuffledRemaining.pop());
+        }
+
+        if (detectedIds.length === 0) {
+            scanMessage.textContent = '가장 편안한 위치를 선택해주세요';
+        }
+
+        AppState.detectedEnvironments = displayEnvs;
 
         // 사용자에게 선택하도록 UI 표시
-        scanResult.innerHTML = detected.map(env =>
-            `<div class="scan-item" onclick="selectEnvironment('${env.id}')">
+        scanResult.innerHTML = displayEnvs.map(env => {
+            const isDetected = detectedIds.includes(env.id);
+            const badge = isDetected ? '<span style="position:absolute; top:-10px; right:-10px; background:#FFD700; color:black; font-size:12px; padding:4px 8px; border-radius:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">AI 추천</span>' : '';
+            const borderStyle = isDetected ? 'border: 2px solid #FFD700; background: rgba(255, 215, 0, 0.2);' : '';
+
+            return `
+            <div class="scan-item" style="position:relative; ${borderStyle}" onclick="selectEnvironment('${env.id}')">
+                ${badge}
                 <span class="scan-item-icon">${env.icon}</span>
                 <span class="scan-item-name">${env.name}</span>
-            </div>`
-        ).join('');
+            </div>`;
+        }).join('');
 
         if (resultContainer) resultContainer.style.display = 'flex';
-        scanMessage.textContent = '가장 편안한 위치를 선택해주세요';
+    });
+}
 
-    }, 3000);
+// TensorFLow.js 감지 로직
+async function detectObjects(videoElement) {
+    if (!AppState.objectDetectionModel || !videoElement) {
+        // 모델이 없으면 2초 딜레이 후 빈 배열 반환 (랜덤 폴백)
+        return new Promise(resolve => setTimeout(() => resolve([]), 2000));
+    }
+
+    try {
+        const predictions = await AppState.objectDetectionModel.detect(videoElement);
+        console.log("Predictions:", predictions);
+
+        const map = {
+            'chair': 'chair', 'couch': 'chair', 'bench': 'chair', 'sofa': 'chair',
+            'cup': 'cup', 'bottle': 'cup', 'glass': 'cup', 'wine glass': 'cup', 'bowl': 'cup',
+            'dining table': 'table', 'desk': 'table',
+            'bed': 'bed'
+        };
+
+        const found = new Set();
+        predictions.forEach(p => {
+            if (p.score > 0.5 && map[p.class]) {
+                found.add(map[p.class]);
+            }
+        });
+
+        return Array.from(found);
+    } catch (e) {
+        console.error("Detection error:", e);
+        return [];
+    }
 }
 
 function selectEnvironment(envId) {
@@ -975,6 +1032,39 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// ============================================
+// 데이터 관리자 초기화 및 앱 시작
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    DataManager.init();
+
+    // URL 해시 라우팅 지원 (간단한 형태)
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash.substring(1);
+        if (hash) showScreen(hash);
+    });
+
+    // 초기 화면
+    initScreen();
+
+    // TensorFlow 모델 로드 시작 (백그라운드)
+    loadRunningModel();
+});
+
+async function loadRunningModel() {
+    if (AppState.isModelLoading || AppState.objectDetectionModel) return;
+
+    try {
+        AppState.isModelLoading = true;
+        console.log("Loading TensorFlow model...");
+        AppState.objectDetectionModel = await cocoSsd.load();
+        console.log("Model loaded successfully");
+    } catch (err) {
+        console.error("Failed to load model:", err);
+    } finally {
+        AppState.isModelLoading = false;
+    }
+}
 // ============================================
 // 초기화
 // ============================================
