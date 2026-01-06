@@ -309,23 +309,41 @@ async function loop() {
 
     const video = document.getElementById('camera-feed');
     const canvas = document.getElementById('capture-canvas');
+    const overlayText = document.querySelector('.scan-overlay-text');
+
+    // 비디오 크기와 캔버스 크기 동기화 (중요)
+    if (video.videoWidth > 0 && canvas.width !== video.videoWidth) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        console.log(`Canvas resized to: ${canvas.width}x${canvas.height}`);
+    }
 
     if (video.readyState === 4) { // HAVE_ENOUGH_DATA
-        // 1. 감지 (비동기지만 매 프레임 시도, 모델이 바쁘면 대기 걸릴 수 있음)
+        // 1. 감지 (비동기지만 매 프레임 시도)
         try {
-            const predictions = await detectObjects(video);
-            lastPredictions = predictions;
-            drawAROverlay(canvas, lastPredictions);
+            // 모델 로딩 상태 표시
+            if (AppState.isModelLoading || !AppState.objectDetectionModel) {
+                if (overlayText) {
+                    overlayText.style.opacity = 1;
+                    overlayText.textContent = "AI 모델을 불러오고 있어요...";
+                }
+            } else {
+                if (overlayText) overlayText.style.opacity = 0; // 준비 완료되면 숨김
+
+                const predictions = await detectObjects(video);
+                lastPredictions = predictions;
+                drawAROverlay(canvas, lastPredictions);
+            }
         } catch (e) {
             console.error(e);
         }
     }
 
     if (AppState.isScanning) {
-        // 약간의 딜레이를 주어 과부하 방지 (선택사항, 여기선 부드러움을 위해 바로 요청)
         detectionFrameId = requestAnimationFrame(loop);
     }
 }
+
 
 function drawAROverlay(canvas, predictions) {
     const ctx = canvas.getContext('2d');
