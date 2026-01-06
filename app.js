@@ -217,7 +217,7 @@ async function startCamera() {
         }
 
         // UI 초기화
-        resetCameraUI();
+        startRealTimeDetection();
 
     } catch (err) {
         console.error("카메라 접근 오류:", err);
@@ -259,110 +259,172 @@ function resetCameraUI() {
 
 // 재촬영
 function resetCamera() {
-    resetCameraUI();
+    startRealTimeDetection();
     // 비디오 재생 재개
     const video = document.getElementById('camera-feed');
     if (video) video.play();
 }
 
 
-// 촬영 및 분석
-async function captureAndAnalyze() {
+// 실시간 감지 루프
+let detectionFrameId = null;
+let lastPredictions = [];
+
+function startRealTimeDetection() {
     const video = document.getElementById('camera-feed');
     const canvas = document.getElementById('capture-canvas');
-    const captureBtn = document.getElementById('capture-btn');
-    const scanMessage = document.getElementById('scan-message');
-    const scanLine = document.querySelector('.scan-line');
     const overlayText = document.querySelector('.scan-overlay-text');
-    const resultContainer = document.getElementById('scan-result-container');
-    const scanResult = document.getElementById('scan-result');
+    const scanLine = document.querySelector('.scan-line');
 
     if (!video || !canvas) return;
 
-    // 1. 캡처
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // UI 초기화
+    canvas.style.display = 'block'; // 오버레이 표시
+    if (overlayText) overlayText.style.opacity = 0; // "분석 중" 텍스트 숨김
+    if (scanLine) scanLine.style.display = 'block'; // 스캔 라인 효과 유지 (선택사항)
 
-    video.style.display = 'none';
-    canvas.style.display = 'block';
+    // 캔버스 크기 맞춤
+    canvas.width = video.videoWidth || video.clientWidth;
+    canvas.height = video.videoHeight || video.clientHeight;
 
-    // 2. UI 변경
-    if (captureBtn) captureBtn.style.display = 'none';
-    if (scanLine) scanLine.style.display = 'block';
-    if (overlayText) {
-        overlayText.textContent = "AI가 주변을 살펴보고 있어요...";
-        overlayText.style.opacity = 1;
+    AppState.isScanning = true;
+
+    // 터치 이벤트 리스너 (한 번만 등록)
+    canvas.onclick = (e) => handleCanvasClick(e, canvas);
+
+    // 감지 및 그리기 루프 시작
+    loop();
+}
+
+function stopRealTimeDetection() {
+    AppState.isScanning = false;
+    if (detectionFrameId) {
+        cancelAnimationFrame(detectionFrameId);
+        detectionFrameId = null;
     }
-    scanMessage.textContent = '잠시만 기다려주세요...';
+}
 
-    // 3. AI 분석
-    try {
-        await new Promise(resolve => setTimeout(resolve, 800));
+async function loop() {
+    if (!AppState.isScanning) return;
 
-        const predictions = await detectObjects(canvas);
+    const video = document.getElementById('camera-feed');
+    const canvas = document.getElementById('capture-canvas');
 
-        // 매핑 정의
-        const map = {
-            'chair': 'chair', 'couch': 'chair', 'bench': 'chair', 'sofa': 'chair',
-            'cup': 'cup', 'bottle': 'cup', 'glass': 'cup', 'wine glass': 'cup', 'bowl': 'cup',
-            'dining table': 'table', 'desk': 'table',
-            'bed': 'bed'
-        };
-
-        const validIds = new Set();
-        const seenLabels = new Set();
-
-        // Bounding Box 그리기
-        if (predictions && predictions.length > 0) {
-            ctx.lineWidth = 4;
-            ctx.font = 'bold 20px Pretendard';
-
-            predictions.forEach(p => {
-                const [x, y, width, height] = p.bbox;
-                const isMapped = map[p.class];
-
-                // Mapped(Cyan), Unmapped(Orange)
-                const color = isMapped ? '#00FFFF' : '#FF9500';
-
-                // 박스
-                ctx.strokeStyle = color;
-                ctx.strokeRect(x, y, width, height);
-
-                // 라벨
-                ctx.fillStyle = color;
-                const textWidth = ctx.measureText(p.class).width;
-                ctx.fillRect(x, y, textWidth + 20, 30);
-
-                ctx.fillStyle = '#000000';
-                ctx.fillText(p.class, x + 5, y + 22);
-
-                if (isMapped) validIds.add(map[p.class]);
-                seenLabels.add(p.class);
-            });
+    if (video.readyState === 4) { // HAVE_ENOUGH_DATA
+        // 1. 감지 (비동기지만 매 프레임 시도, 모델이 바쁘면 대기 걸릴 수 있음)
+        try {
+            const predictions = await detectObjects(video);
+            lastPredictions = predictions;
+            drawAROverlay(canvas, lastPredictions);
+        } catch (e) {
+            console.error(e);
         }
+    }
 
-        const detectedIds = Array.from(validIds);
+    if (AppState.isScanning) {
+        // 약간의 딜레이를 주어 과부하 방지 (선택사항, 여기선 부드러움을 위해 바로 요청)
+        detectionFrameId = requestAnimationFrame(loop);
+    }
+}
 
-        // 똑똑한 피드백 생성
-        let customMessage = null;
-        if (detectedIds.length === 0 && seenLabels.size > 0) {
-            // 인식은 했으나 게임 아이템이 아님
-            const labels = Array.from(seenLabels);
-            const example = labels[0]; // e.g., 'laptop'
-            customMessage = `오! [${example}]이(가) 보이네요? 하지만 운동을 위해 의자나 컵을 찾아볼까요?`;
+function drawAROverlay(canvas, predictions) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // 이전 프레임 지우기
+
+    // 매핑 정의
+    const map = {
+        'chair': 'chair', 'couch': 'chair', 'bench': 'chair', 'sofa': 'chair',
+        'cup': 'cup', 'bottle': 'cup', 'glass': 'cup', 'wine glass': 'cup', 'bowl': 'cup',
+        'dining table': 'table', 'desk': 'table',
+        'bed': 'bed'
+    };
+
+    if (predictions && predictions.length > 0) {
+        ctx.lineWidth = 4;
+        ctx.font = 'bold 20px Pretendard';
+
+        predictions.forEach(p => {
+            const [x, y, width, height] = p.bbox;
+            const isMapped = map[p.class];
+
+            // 색상: Mapped(Green), Unmapped(Orange) - Feedback: Green for interaction
+            const color = isMapped ? '#00FF00' : '#FF9500';
+
+            // 박스
+            ctx.strokeStyle = color;
+            ctx.strokeRect(x, y, width, height);
+
+            // 라벨 배경
+            ctx.fillStyle = color;
+            const textWidth = ctx.measureText(p.class).width;
+            ctx.fillRect(x, y, textWidth + 20, 30);
+
+            // 라벨 텍스트
+            ctx.fillStyle = '#000000';
+            ctx.fillText(p.class, x + 5, y + 22);
+
+            // 터치 유도 아이콘 (옵션)
+            if (isMapped) {
+                ctx.fillStyle = '#FFFFFF';
+                font = '30px serif';
+                ctx.fillText('👆', x + width / 2 - 15, y + height / 2 + 10);
+                // Font 복구
+                ctx.font = 'bold 20px Pretendard';
+            }
+        });
+    }
+}
+
+function handleCanvasClick(event, canvas) {
+    if (!lastPredictions || lastPredictions.length === 0) return;
+
+    const rect = canvas.getBoundingClientRect();
+    // 캔버스 좌표계로 변환 (CSS 크기 vs 실제 픽셀 크기 비율 계산)
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const clickX = (event.clientX - rect.left) * scaleX;
+    const clickY = (event.clientY - rect.top) * scaleY;
+
+    // 매핑 정의 (drawAROverlay와 동일)
+    const map = {
+        'chair': 'chair', 'couch': 'chair', 'bench': 'chair', 'sofa': 'chair',
+        'cup': 'cup', 'bottle': 'cup', 'glass': 'cup', 'wine glass': 'cup', 'bowl': 'cup',
+        'dining table': 'table', 'desk': 'table',
+        'bed': 'bed'
+    };
+
+    // 클릭된 박스 찾기 (여러 개 겹칠 경우 가장 작은 박스 or 가장 위에 있는 박스 우선? 여기선 단순 역순)
+    let selected = null;
+
+    // 역순으로 순회 (위에 그려진 것부터 확인)
+    for (let i = lastPredictions.length - 1; i >= 0; i--) {
+        const p = lastPredictions[i];
+        const [x, y, width, height] = p.bbox;
+
+        if (clickX >= x && clickX <= x + width && clickY >= y && clickY <= y + height) {
+            selected = p;
+            break;
         }
+    }
 
-        // 박스가 그려진 상태를 잠시 보여줌 (1.5초)
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // 4. 결과 표시
-        showScanResults(detectedIds, customMessage);
-
-    } catch (err) {
-        console.error("Analysis error:", err);
-        showScanResults([], "죄송해요, 눈이 침침하네요. 다시 한 번 찍어주실래요?");
+    if (selected) {
+        const mappedId = map[selected.class];
+        if (mappedId) {
+            // 성공! 다음 단계로
+            stopRealTimeDetection();
+            // confirm with user or just go? User said "select box then proceed"
+            // Let's show a quick toast "Selected!" and go
+            showToast(`[${selected.class}] 선택 완료!`);
+            selectEnvironment(mappedId);
+        } else {
+            // 주황색 박스 클릭 시 피드백
+            showToast(`[${selected.class}] 말고, 의자나 컵을 찾아보세요! 😅`);
+        }
+    }
+}
+console.error("Analysis error:", err);
+showScanResults([], "죄송해요, 눈이 침침하네요. 다시 한 번 찍어주실래요?");
     }
 }
 // 결과 표시 로직
