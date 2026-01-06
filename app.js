@@ -406,13 +406,15 @@ function showScanResults(detectedIds, customMessage) {
         }
     }
 
-    // 나머지 채우기
-    const currentIds = displayEnvs.map(e => e.id);
-    const remaining = ENVIRONMENTS.filter(e => !currentIds.includes(e.id));
-    const shuffled = remaining.sort(() => Math.random() - 0.5);
+    // 나머지 채우기 (감지된 게 없을 때만)
+    if (detectedIds.length === 0) {
+        const currentIds = displayEnvs.map(e => e.id);
+        const remaining = ENVIRONMENTS.filter(e => !currentIds.includes(e.id));
+        const shuffled = remaining.sort(() => Math.random() - 0.5);
 
-    while (displayEnvs.length < 4 && shuffled.length > 0) {
-        displayEnvs.push(shuffled.pop());
+        while (displayEnvs.length < 4 && shuffled.length > 0) {
+            displayEnvs.push(shuffled.pop());
+        }
     }
 
     // 안전장치
@@ -420,7 +422,17 @@ function showScanResults(detectedIds, customMessage) {
 
     AppState.detectedEnvironments = displayEnvs;
 
+    AppState.detectedEnvironments = displayEnvs;
+
     // 리스트 렌더링
+    // 1개일 때는 중앙 정렬을 위해 Flex, 여러 개일 때는 Grid
+    if (displayEnvs.length === 1) {
+        scanResult.style.display = 'flex';
+        scanResult.style.flexDirection = 'column';
+    } else {
+        scanResult.style.display = 'grid';
+    }
+
     scanResult.innerHTML = displayEnvs.map(env => {
         const isDetected = detectedIds && detectedIds.includes(env.id);
         const badge = isDetected ? '<span style="position:absolute; top:-10px; right:-10px; background:#FFD700; color:black; font-size:12px; padding:4px 8px; border-radius:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">추천</span>' : '';
