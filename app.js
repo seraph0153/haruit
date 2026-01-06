@@ -423,10 +423,6 @@ function handleCanvasClick(event, canvas) {
         }
     }
 }
-console.error("Analysis error:", err);
-showScanResults([], "죄송해요, 눈이 침침하네요. 다시 한 번 찍어주실래요?");
-    }
-}
 // 결과 표시 로직
 function showScanResults(detectedIds, customMessage) {
     const scanLine = document.querySelector('.scan-line');
