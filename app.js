@@ -279,7 +279,7 @@ function performScan() {
             </div>`
         ).join('');
 
-        if (resultContainer) resultContainer.style.display = 'block';
+        if (resultContainer) resultContainer.style.display = 'flex';
         scanMessage.textContent = '가장 편안한 위치를 선택해주세요';
 
     }, 3000);

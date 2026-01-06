@@ -600,59 +600,93 @@ textarea.input {
 }
 
 .scan-result-container {
-    position: absolute;
-    bottom: 100px;
+    position: fixed;
+    /* Changed from absolute to fixed */
+    top: 0;
     left: 0;
     width: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    padding: var(--spacing-lg);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    z-index: 10;
-    animation: slideUp 0.3s ease-out;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    /* Changed opacity */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    /* Increased z-index */
+    animation: fadeIn 0.3s ease-out;
+    /* Changed animation */
+    padding: 20px;
 }
 
-@keyframes slideUp {
+@keyframes fadeIn {
+
+    /* New animation */
     from {
-        transform: translateY(100%);
+        opacity: 0;
     }
 
     to {
-        transform: translateY(0);
+        opacity: 1;
     }
 }
 
 .scan-result {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-    justify-content: center;
+    display: grid;
+    /* Changed from flex to grid */
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    /* Changed gap */
+    width: 100%;
+    max-width: 320px;
+    /* Added max-width */
+    margin-top: 20px;
+    /* Added margin-top */
 }
 
 .scan-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-md);
-    background: white;
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    min-width: 80px;
+    justify-content: center;
+    /* Added justify-content */
+    gap: 8px;
+    /* Changed gap */
+    padding: 24px;
+    /* Changed padding */
+    background: rgba(255, 255, 255, 0.1);
+    /* Changed background */
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    /* Added border */
+    border-radius: var(--radius-lg);
+    /* Changed border-radius */
+    color: white;
+    /* Changed color */
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: all 0.2s;
+    /* Changed transition */
+    backdrop-filter: blur(5px);
+    /* Added backdrop-filter */
 }
 
-.scan-item:active {
-    transform: scale(0.95);
-    background: var(--color-primary-light);
+.scan-item:active,
+.scan-item:hover {
+    /* New styles */
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    transform: scale(1.05);
 }
 
 .scan-item-icon {
-    font-size: 32px;
+    font-size: 40px;
+    /* Changed font-size */
+    margin-bottom: 4px;
+    /* Added margin-bottom */
 }
 
 .scan-item-name {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
+    /* Changed font-size */
     font-weight: 600;
 }
 
