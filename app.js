@@ -10,6 +10,9 @@ const AppState = {
     currentUser: null,
     isAdmin: false,
 
+    // 카메라 스트림
+    cameraStream: null,
+
     // 미션 진행 상태
     selectedMobility: null,
     detectedEnvironments: [],
@@ -37,6 +40,14 @@ const AppState = {
         this.missionCompleted = false;
         this.smallTalkCompleted = false;
         this.missionStartTime = null;
+        this.stopCamera();
+    },
+
+    stopCamera() {
+        if (this.cameraStream) {
+            this.cameraStream.getTracks().forEach(track => track.stop());
+            this.cameraStream = null;
+        }
     }
 };
 
@@ -72,8 +83,11 @@ function initScreen(screenId) {
         case 'admin-dashboard':
             renderAdminDashboard();
             break;
-        case 'admin-user-detail':
-            renderUserDetail();
+        case 'environment-scan':
+            startCamera(); // 화면 진입 시 카메라 시작
+            break;
+        case 'ar-simulation':
+            startARCamera(); // AR 배경용 카메라 시작
             break;
     }
 }
@@ -183,66 +197,123 @@ function confirmMobility() {
 }
 
 // ============================================
-// 환경 스캔 시뮬레이션
+// 환경 스캔 (카메라 연동)
 // ============================================
+async function startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+        AppState.cameraStream = stream;
+
+        const videoElement = document.getElementById('camera-feed');
+        if (videoElement) {
+            videoElement.srcObject = stream;
+        }
+
+        // 메시지 업데이트
+        document.getElementById('scan-message').textContent = '버튼을 눌러 주변을 살펴볼게요';
+    } catch (err) {
+        console.error("카메라 접근 오류:", err);
+        document.getElementById('scan-message').textContent = '카메라를 켤 수 없어요 (설정에서 권한을 확인해주세요)';
+        showToast('카메라 권한이 필요합니다');
+    }
+}
+
+function stopCamera() {
+    AppState.stopCamera();
+}
+
 function startScan() {
+    // 카메라가 안 켜져 있으면 켜기 시도
+    if (!AppState.cameraStream) {
+        startCamera().then(() => {
+            if (AppState.cameraStream) performScan();
+        });
+    } else {
+        performScan();
+    }
+}
+
+function performScan() {
     const scanBtn = document.getElementById('scan-btn');
-    const scanFrame = document.querySelector('.scan-frame');
     const scanLine = document.querySelector('.scan-line');
-    const scanResult = document.querySelector('.scan-result');
     const scanMessage = document.getElementById('scan-message');
+    const overlayText = document.querySelector('.scan-overlay-text');
+    const resultContainer = document.getElementById('scan-result-container');
+    const scanResult = document.getElementById('scan-result');
 
-    // 버튼 숨기기
-    scanBtn.style.display = 'none';
-    scanMessage.textContent = '잠깐 살펴볼게요. 사진은 저장하지 않아요.';
+    // 초기화
+    if (resultContainer) resultContainer.style.display = 'none';
+    if (scanBtn) scanBtn.style.display = 'none';
 
-    // 스캔 라인 표시
+    // 스캔 애니메이션 시작
     if (scanLine) scanLine.style.display = 'block';
+    if (overlayText) {
+        overlayText.textContent = "공간을 분석하고 있어요...";
+        overlayText.style.opacity = 1;
+    }
+    scanMessage.textContent = '잠시만 그대로 있어주세요...';
 
-    // 2초 후 결과 표시
+    // 2초 후 1차 분석 완료 (페이크)
+    setTimeout(() => {
+        if (overlayText) overlayText.textContent = "사물을 찾고 있어요...";
+    }, 1500);
+
+    // 3초 후 결과 표시
     setTimeout(() => {
         // 스캔 라인 숨기기
         if (scanLine) scanLine.style.display = 'none';
+        if (overlayText) overlayText.style.opacity = 0;
 
-        // 랜덤 환경 선택 (3-5개)
+        // 랜덤 환경 선택 (3개 고정)
         const shuffled = [...ENVIRONMENTS].sort(() => Math.random() - 0.5);
-        const count = 3 + Math.floor(Math.random() * 3);
-        AppState.detectedEnvironments = shuffled.slice(0, count);
+        const detected = shuffled.slice(0, 3);
+        AppState.detectedEnvironments = detected;
 
-        // 결과 렌더링
-        scanResult.innerHTML = AppState.detectedEnvironments.map(env =>
-            `<div class="scan-item">
-                <span>✓</span>
-                <span>${env.icon} ${env.name} 감지됨</span>
+        // 사용자에게 선택하도록 UI 표시
+        scanResult.innerHTML = detected.map(env =>
+            `<div class="scan-item" onclick="selectEnvironment('${env.id}')">
+                <span class="scan-item-icon">${env.icon}</span>
+                <span class="scan-item-name">${env.name}</span>
             </div>`
         ).join('');
 
-        scanResult.classList.add('show');
-        scanMessage.textContent = '환경을 감지했어요!';
+        if (resultContainer) resultContainer.style.display = 'block';
+        scanMessage.textContent = '가장 편안한 위치를 선택해주세요';
 
-        // 다음 버튼 표시
-        document.getElementById('scan-next-btn').style.display = 'block';
-    }, 2000);
+    }, 3000);
 }
 
-function confirmScan() {
-    generateMission();
+function selectEnvironment(envId) {
+    const env = ENVIRONMENTS.find(e => e.id === envId);
+    if (!env) return;
+
+    // 미션 생성
+    generateMission(env);
+
+    // 카메라 중지하고 미션 제안 화면으로
+    stopCamera();
     showScreen('mission-suggest');
 }
 
 // ============================================
 // AI 미션 생성
 // ============================================
-function generateMission() {
+function generateMission(specificEnv = null) {
     const mobility = AppState.selectedMobility;
-    const environments = AppState.detectedEnvironments;
 
-    if (environments.length === 0) return;
+    // 특정 환경이 주어지면 그것 사용, 아니면 기존 랜덤 로직 (재시도용)
+    let env;
+    if (specificEnv) {
+        env = specificEnv;
+    } else {
+        const environments = AppState.detectedEnvironments;
+        if (environments.length === 0) return;
+        env = environments[Math.floor(Math.random() * environments.length)];
+    }
 
-    // 랜덤 환경 선택
-    const env = environments[Math.floor(Math.random() * environments.length)];
     const missionList = MISSIONS[env.id][mobility];
-
     if (!missionList || missionList.length === 0) return;
 
     // 랜덤 미션 선택
@@ -292,6 +363,26 @@ function requestNewMission() {
 // ============================================
 // AR 시뮬레이션
 // ============================================
+function startARCamera() {
+    startCameraAPI('ar-camera-bg');
+}
+
+async function startCameraAPI(elementId) {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+        AppState.cameraStream = stream;
+
+        const videoElement = document.getElementById(elementId);
+        if (videoElement) {
+            videoElement.srcObject = stream;
+        }
+    } catch (err) {
+        console.error("AR 카메라 접근 오류:", err);
+    }
+}
+
 function startARAnimation() {
     const arMissionEl = document.getElementById('ar-mission-text');
     if (arMissionEl && AppState.currentMission) {
@@ -322,24 +413,27 @@ function showSmallTalkOption() {
 }
 
 function hasSomeoneNearby(hasCompany) {
+    AppState.stopCamera(); // 카메라 중지
+
     if (hasCompany) {
         generateSmallTalkQuestion();
         showScreen('smalltalk-question');
     } else {
-        // 혼자인 경우 바로 완료/미완료 선택
-        showScreen('ar-simulation');
+        // 혼자인 경우 바로 보상 화면으로
+        skipSmallTalk();
     }
 }
 
 function completeMission(completed) {
     AppState.missionCompleted = completed;
 
-    if (!AppState.smallTalkCompleted && !completed) {
-        // 미완료인 경우 바로 보상 화면
-        showRewardScreen();
+    if (completed) {
+        // 미션 완료 시 스몰토크 여부 질문 화면으로
+        showScreen('smalltalk-check');
     } else {
-        // 완료한 경우 스몰토크 옵션 제공
-        showSmallTalkOption();
+        // 미완료 시 바로 보상 화면 (격려)
+        AppState.stopCamera();
+        showRewardScreen();
     }
 }
 
