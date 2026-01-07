@@ -33,6 +33,13 @@ const AppState = {
     // 타이머
     missionStartTime: null,
 
+    // [동작 모니터링 상태]
+    isMonitoring: false,
+    movementCount: 0,
+    targetMovement: 5,
+    lastObjectPos: null,
+    monitoringStartTime: null,
+
     reset() {
         this.selectedMobility = null;
         this.detectedEnvironments = [];
@@ -800,11 +807,15 @@ async function startMonitoringMovement() {
 
         AppState.isMonitoring = true;
         AppState.movementCount = 0;
+        AppState.targetMovement = 5; // [버그 수정] 기본값 보장
         AppState.lastObjectPos = null;
+        AppState.monitoringStartTime = new Date();
 
         // UI 초기화
         const progressContainer = document.getElementById('monitoring-progress-container');
         if (progressContainer) progressContainer.style.display = 'block';
+
+        updateARGuidance(); // 가이드 비주얼 설정
         updateMonitoringUI();
 
         monitoringLoop();
@@ -890,19 +901,67 @@ async function monitoringLoop() {
     monitoringFrameId = requestAnimationFrame(monitoringLoop);
 }
 
+function updateARGuidance() {
+    const missionText = AppState.currentMission?.mission || "";
+    const arrow = document.getElementById('ar-arrow');
+    const icon = document.getElementById('ar-object-icon');
+    const statusMsg = document.getElementById('ar-status-message');
+
+    if (!arrow || !icon) return;
+
+    // 미션 키워드에 따른 아이콘/화살표 변경
+    if (missionText.includes("두드려") || missionText.includes("만져") || missionText.includes("느껴")) {
+        arrow.textContent = "👆";
+        icon.textContent = "🖐️";
+        if (statusMsg) statusMsg.textContent = "물체를 가볍게 터치하거나 느껴보세요";
+    } else if (missionText.includes("돌려") || missionText.includes("움직여") || missionText.includes("바꿔")) {
+        arrow.textContent = "🔄";
+        icon.textContent = "📦";
+        if (statusMsg) statusMsg.textContent = "물체를 조금씩 움직여보세요";
+    } else if (missionText.includes("닦아") || missionText.includes("정리")) {
+        arrow.textContent = "↔️";
+        icon.textContent = "✨";
+        if (statusMsg) statusMsg.textContent = "사물을 깨끗하게 정리하거나 닦아볼까요?";
+    } else if (missionText.includes("기지개") || missionText.includes("일어나")) {
+        arrow.textContent = "↑";
+        icon.textContent = "🙋";
+        if (statusMsg) statusMsg.textContent = "몸을 쭉 펴서 동작을 완료해주세요";
+    } else if (missionText.includes("바라봐") || missionText.includes("살펴")) {
+        arrow.textContent = "👁️";
+        icon.textContent = "🔍";
+        if (statusMsg) statusMsg.textContent = "사물을 차분히 들여다보세요";
+    } else {
+        arrow.textContent = "↑";
+        icon.textContent = "🎯";
+    }
+}
+
 function triggerInteractiveReaction() {
     const arrow = document.getElementById('ar-arrow');
     const icon = document.getElementById('ar-object-icon');
+    const container = document.querySelector('.ar-visual');
 
+    // [인터랙티브 강화] 반응 애니메이션
     [arrow, icon].forEach(el => {
         if (el) {
-            el.style.transform = 'scale(1.3)';
-            el.style.transition = 'transform 0.1s ease-out';
-            setTimeout(() => {
-                el.style.transform = 'scale(1)';
-            }, 100);
+            el.animate([
+                { transform: 'scale(1)', opacity: 1 },
+                { transform: 'scale(1.5)', opacity: 0.8 },
+                { transform: 'scale(1)', opacity: 1 }
+            ], {
+                duration: 300,
+                easing: 'ease-out'
+            });
         }
     });
+
+    // 화면 번쩍임 효과
+    if (container) {
+        container.style.backgroundColor = 'rgba(0, 255, 0, 0.1)';
+        setTimeout(() => {
+            container.style.backgroundColor = 'transparent';
+        }, 300);
+    }
 }
 
 function updateMonitoringUI() {

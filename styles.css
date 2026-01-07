@@ -779,45 +779,42 @@ textarea.input {
 }
 
 .ar-arrow {
-    font-size: 120px;
+    font-size: 80px;
+    /* 크기 최적화 */
     color: var(--color-primary);
-    animation: arrowBounce 1s ease-in-out infinite;
-    filter: drop-shadow(0 4px 8px rgba(74, 144, 226, 0.4));
+    animation: arrowBounce 1.5s ease-in-out infinite;
+    filter: drop-shadow(0 4px 12px rgba(74, 144, 226, 0.5));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.9);
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    margin-bottom: 20px;
 }
 
 @keyframes arrowBounce {
 
     0%,
     100% {
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
     }
 
     50% {
-        transform: translateY(-20px);
-    }
-}
-
-.ar-arrow.rotate {
-    animation: arrowRotate 2s linear infinite;
-}
-
-@keyframes arrowRotate {
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
+        transform: translateY(-15px) scale(1.1);
     }
 }
 
 .ar-object-icon {
     position: absolute;
-    font-size: 160px;
-    opacity: 0.15;
+    font-size: 100px;
+    /* 너무 크지 않게 조절 */
+    opacity: 0.4;
+    /* 불투명도 약간 증가 */
     z-index: -1;
-    filter: blur(2px);
-    animation: pulseIcon 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 20px rgba(74, 144, 226, 0.3));
+    animation: pulseIcon 2s ease-in-out infinite;
 }
 
 @keyframes pulseIcon {
