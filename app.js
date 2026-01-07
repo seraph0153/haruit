@@ -365,15 +365,23 @@ function drawAROverlay(canvas, predictions) {
             const [x, y, width, height] = p.bbox;
             const isMapped = map[p.class];
 
-            // 색상: Mapped(Green), Unmapped(Orange) - Feedback: Green for interaction
-            const color = isMapped ? '#00FF00' : '#FF9500';
+            // 색상 정의 (RGBA 사용으로 투명도 부여)
+            // Mapped(Green): #00FF00 -> rgba(0, 255, 0, 0.3)
+            // Unmapped(Orange): #FF9500 -> rgba(255, 149, 0, 0.3)
+            const boxColor = isMapped ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 149, 0, 0.2)';
+            const strokeColor = isMapped ? '#00FF00' : '#FF9500';
 
-            // 박스
-            ctx.strokeStyle = color;
+            // 박스 배경색 (투명도 있음)
+            ctx.fillStyle = boxColor;
+            ctx.fillRect(x, y, width, height);
+
+            // 박스 테두리 (불투명)
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 4;
             ctx.strokeRect(x, y, width, height);
 
             // 라벨 배경
-            ctx.fillStyle = color;
+            ctx.fillStyle = strokeColor;
             const textWidth = ctx.measureText(p.class).width;
             ctx.fillRect(x, y, textWidth + 20, 30);
 
