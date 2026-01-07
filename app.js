@@ -561,12 +561,59 @@ function selectEnvironment(envId) {
     const env = ENVIRONMENTS.find(e => e.id === envId);
     if (!env) return;
 
-    // 미션 생성
-    generateMission(env);
+    // [심사위원 보완 사항 반영] 안전 체크 단계 추가
+    AppState.selectedEnvForSafety = env;
+    showSafetyCheck(env);
+}
 
-    // 카메라 중지하고 미션 제안 화면으로
+function showSafetyCheck(env) {
+    // 안전 체크용 토스트나 오버레이 UI를 통해 사용자에게 주의 환기
+    // 여기서는 간단히 UI를 통해 안전 확인 모달을 띄우는 것으로 시뮬레이션
+    const safetyOverlay = document.createElement('div');
+    safetyOverlay.id = 'safety-check-modal';
+    safetyOverlay.style = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85); z-index: 10000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 40px; text-align: center; color: white;
+    `;
+
+    let safetyContent = '';
+    if (env.id === 'chair') {
+        safetyContent = '⚠️ 의자가 벽에 붙어있거나 고정되어 있나요? <br> 미끄러운 바퀴 의자는 위험해요!';
+    } else if (env.id === 'cup') {
+        safetyContent = '⚠️ 컵에 물이 들어있다면 쏟아지지 않게 주의하세요! <br> 미끄럽지 않은 곳에 두었나요?';
+    } else {
+        safetyContent = '⚠️ 주변에 부딪힐 만한 물건은 없는지 확인해주세요!';
+    }
+
+    safetyOverlay.innerHTML = `
+        <div style="background: #1a1a1a; padding: 30px; border-radius: 24px; border: 2px solid #FFD700; max-width: 320px;">
+            <div style="font-size: 48px; margin-bottom: 20px;">🛡️</div>
+            <h2 style="color: #FFD700; margin-bottom: 20px;">안전을 확인하세요!</h2>
+            <p style="font-size: 18px; line-height: 1.6; margin-bottom: 30px;">${safetyContent}</p>
+            <button class="btn btn-primary btn-full" onclick="confirmSafety()">예, 안전합니다!</button>
+            <button class="btn btn-ghost btn-full mt-sm" onclick="cancelSafety()" style="color: rgba(255,255,255,0.6);">다시 비춰보기</button>
+        </div>
+    `;
+    document.body.appendChild(safetyOverlay);
+}
+
+function confirmSafety() {
+    const env = AppState.selectedEnvForSafety;
+    const modal = document.getElementById('safety-check-modal');
+    if (modal) modal.remove();
+
+    // 미션 생성 및 화면 전환
+    generateMission(env);
     stopCamera();
     showScreen('mission-suggest');
+}
+
+function cancelSafety() {
+    const modal = document.getElementById('safety-check-modal');
+    if (modal) modal.remove();
+    startRealTimeDetection(); // 다시 스캔 시작
 }
 
 // ============================================
