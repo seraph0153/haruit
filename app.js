@@ -290,7 +290,10 @@ function startRealTimeDetection() {
     AppState.isScanning = true;
 
     // 터치 이벤트 리스너 (한 번만 등록)
-    canvas.onclick = (e) => handleCanvasClick(e, canvas);
+    canvas.style.cursor = 'pointer';
+    canvas.removeEventListener('click', canvas._clickHandler); // 기존 제거
+    canvas._clickHandler = (e) => handleCanvasClick(e, canvas);
+    canvas.addEventListener('click', canvas._clickHandler);
 
     // 감지 및 그리기 루프 시작
     loop();
@@ -402,47 +405,54 @@ function drawAROverlay(canvas, predictions) {
 }
 
 function handleCanvasClick(event, canvas) {
-    if (!lastPredictions || lastPredictions.length === 0) return;
+    console.log("Canvas clicked!", event.clientX, event.clientY);
+    showToast("터치 감지됨"); // 터치 자체가 먹는지 확인용 (임시)
+
+    if (!lastPredictions || lastPredictions.length === 0) {
+        console.log("No predictions available yet.");
+        return;
+    }
 
     const rect = canvas.getBoundingClientRect();
     const video = document.getElementById('camera-feed');
     if (!video) return;
 
     // [트래킹 개선] object-fit: contain 대응 좌표 계산
-    // 비디오/캔버스의 실제 렌더링 비율과 오프셋 계산
     const videoRatio = video.videoWidth / video.videoHeight;
     const elementRatio = rect.width / rect.height;
 
     let renderW, renderH, offsetX, offsetY;
 
     if (elementRatio > videoRatio) {
-        // 좌우 레터박스 (세로에 맞춤)
         renderH = rect.height;
         renderW = renderH * videoRatio;
         offsetX = (rect.width - renderW) / 2;
         offsetY = 0;
     } else {
-        // 상하 레터박스 (가로에 맞춤)
         renderW = rect.width;
         renderH = renderW / videoRatio;
         offsetX = 0;
         offsetY = (rect.height - renderH) / 2;
     }
 
-    // 클릭 좌표를 렌더링된 영역 기준으로 변환
     const relativeX = event.clientX - rect.left - offsetX;
     const relativeY = event.clientY - rect.top - offsetY;
 
-    // 실제 픽셀 좌표로 변환
     const scaleX = video.videoWidth / renderW;
     const scaleY = video.videoHeight / renderH;
 
     const clickX = relativeX * scaleX;
     const clickY = relativeY * scaleY;
 
-    console.log(`Click at: ${clickX}, ${clickY} (Internal Pixels)`);
+    console.log(`Debug Click - Relative: (${relativeX}, ${relativeY}), Internal: (${clickX}, ${clickY})`);
 
-    // 매핑 정의 (drawAROverlay와 동일)
+    // 시각적 피드백 (디버깅용 점 그리기)
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'red';
+    ctx.beginPath();
+    ctx.arc(clickX, clickY, 10, 0, Math.PI * 2);
+    ctx.fill();
+
     const map = {
         'chair': 'chair', 'couch': 'chair', 'bench': 'chair', 'sofa': 'chair',
         'cup': 'cup', 'bottle': 'cup', 'glass': 'cup', 'wine glass': 'cup', 'bowl': 'cup',
@@ -455,8 +465,11 @@ function handleCanvasClick(event, canvas) {
         const p = lastPredictions[i];
         const [x, y, width, height] = p.bbox;
 
+        console.log(`Checking box: ${p.class} at [${x}, ${y}, ${width}, ${height}]`);
+
         if (clickX >= x && clickX <= x + width && clickY >= y && clickY <= y + height) {
             selected = p;
+            console.log("Match found!", p.class);
             break;
         }
     }
@@ -469,6 +482,8 @@ function handleCanvasClick(event, canvas) {
         } else {
             showToast(`[${selected.class}] 대신 의자나 컵을 눌러보세요!`);
         }
+    } else {
+        console.log("No box matched the click coordinates.");
     }
 }
 // 결과 표시 로직
