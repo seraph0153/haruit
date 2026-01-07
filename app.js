@@ -742,6 +742,135 @@ function startARAnimation() {
 
     // 파티클 효과 시작
     createParticles();
+
+    // [핵심] 실시간 동작 모니터링 시작
+    startMonitoringMovement();
+}
+
+// 동작 모니터링 시작
+async function startMonitoringMovement() {
+    if (AppState.isMonitoring) return;
+
+    // 비디오 다시 연결 (AR 배경용)
+    const video = document.getElementById('ar-camera-bg');
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' },
+            audio: false
+        });
+        if (video) video.srcObject = stream;
+
+        AppState.isMonitoring = true;
+        AppState.movementCount = 0;
+        AppState.lastObjectPos = null;
+
+        // UI 초기화
+        const progressContainer = document.getElementById('monitoring-progress-container');
+        if (progressContainer) progressContainer.style.display = 'block';
+        updateMonitoringUI();
+
+        monitoringLoop();
+    } catch (e) {
+        console.error("Monitoring camera error:", e);
+    }
+}
+
+async function monitoringLoop() {
+    if (!AppState.isMonitoring) return;
+
+    const video = document.getElementById('ar-camera-bg');
+    if (video && video.readyState === 4 && AppState.objectDetectionModel) {
+        try {
+            const predictions = await AppState.objectDetectionModel.detect(video);
+            const targetClass = AppState.currentMission.environment; // 'chair', 'cup' 등
+
+            // 타겟 사물만 필터링
+            const target = predictions.find(p => p.class === targetClass && p.score > 0.3);
+
+            if (target) {
+                const [x, y, w, h] = target.bbox;
+                const currentPos = { x: x + w / 2, y: y + h / 2 }; // 중심점
+
+                if (AppState.lastObjectPos) {
+                    // 이전 프레임과의 거리 계산
+                    const dist = Math.sqrt(
+                        Math.pow(currentPos.x - AppState.lastObjectPos.x, 2) +
+                        Math.pow(currentPos.y - AppState.lastObjectPos.y, 2)
+                    );
+
+                    // 임계값(예: 30px) 이상의 움직임 감지 시 카운트
+                    if (dist > 30) {
+                        AppState.movementCount++;
+                        console.log("Movement detected!", AppState.movementCount);
+                        showSuccessEffect();
+                        updateMonitoringUI();
+
+                        // 목표 달성 시 성공 처리
+                        if (AppState.movementCount >= AppState.targetMovement) {
+                            handleMonitoringSuccess();
+                            return;
+                        }
+                    }
+                }
+                AppState.lastObjectPos = currentPos;
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    monitoringFrameId = requestAnimationFrame(monitoringLoop);
+}
+
+function updateMonitoringUI() {
+    const progressInner = document.getElementById('monitoring-progress-inner');
+    const statusMsg = document.getElementById('ar-status-message');
+
+    if (progressInner) {
+        const percent = (AppState.movementCount / AppState.targetMovement) * 100;
+        progressInner.style.width = `${percent}%`;
+    }
+
+    if (statusMsg) {
+        if (AppState.movementCount === 0) {
+            statusMsg.textContent = "사물을 움직여보세요! AI가 지켜보고 있어요 👀";
+        } else {
+            statusMsg.textContent = `잘하고 계세요! (${AppState.movementCount}/${AppState.targetMovement})`;
+        }
+    }
+}
+
+function showSuccessEffect() {
+    const screen = document.getElementById('ar-simulation');
+    if (screen) {
+        screen.classList.add('success-flash');
+        setTimeout(() => screen.classList.remove('success-flash'), 500);
+    }
+}
+
+function handleMonitoringSuccess() {
+    AppState.isMonitoring = false;
+    if (monitoringFrameId) cancelAnimationFrame(monitoringFrameId);
+
+    showToast("✨ 대단해요! 동작 완벽 인식!");
+
+    // 약간의 딜레이 후 결과 화면으로
+    setTimeout(() => {
+        completeMission(true);
+    }, 1500);
+}
+
+function stopMonitoring() {
+    AppState.isMonitoring = false;
+    if (monitoringFrameId) {
+        cancelAnimationFrame(monitoringFrameId);
+        monitoringFrameId = null;
+    }
+    const video = document.getElementById('ar-camera-bg');
+    if (video && video.srcObject) {
+        const tracks = video.srcObject.getTracks();
+        tracks.forEach(t => t.stop());
+    }
 }
 
 function createParticles() {

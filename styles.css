@@ -832,6 +832,53 @@ textarea.input {
     overflow: hidden;
 }
 
+/* 모니터링 진행률 바 */
+.monitoring-progress-container {
+    padding: 0 20px 20px 20px;
+    width: 100%;
+    max-width: 400px;
+    align-self: center;
+}
+
+.monitoring-progress-label {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.progress-bar {
+    height: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-inner {
+    height: 100%;
+    background: var(--color-primary);
+    box-shadow: 0 0 10px var(--color-primary);
+    transition: width 0.3s ease;
+}
+
+.success-flash {
+    animation: successFlash 0.5s ease;
+}
+
+@keyframes successFlash {
+    0% {
+        background: transparent;
+    }
+
+    50% {
+        background: rgba(0, 255, 0, 0.2);
+    }
+
+    100% {
+        background: transparent;
+    }
+}
+
 .particle {
     position: absolute;
     width: 10px;

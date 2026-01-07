@@ -293,10 +293,18 @@
                     <div id="ar-arrow" class="ar-arrow">↑</div>
                 </div>
 
-                <p class="text-center text-secondary mb-lg"
-                    style="background: rgba(255,255,255,0.8); padding: 8px; border-radius: 20px; align-self: center;">
+                <p id="ar-status-message" class="text-center text-secondary mb-lg"
+                    style="background: rgba(255,255,255,0.8); padding: 8px 16px; border-radius: 20px; align-self: center; font-weight: 600;">
                     화면의 화살표를 따라 움직여보세요
                 </p>
+
+                <!-- 실시간 모니터링 진행률 바 (추가) -->
+                <div id="monitoring-progress-container" class="monitoring-progress-container" style="display: none;">
+                    <div class="monitoring-progress-label">움직임 감지 중...</div>
+                    <div class="progress-bar">
+                        <div id="monitoring-progress-inner" class="progress-inner" style="width: 0%;"></div>
+                    </div>
+                </div>
 
                 <div class="flex flex-col gap-md" style="padding: 16px;">
                     <button class="btn btn-success btn-lg btn-full" onclick="completeMission(true)">
