@@ -567,8 +567,8 @@ textarea.input {
     /* 비디오 비율과 일비율 유지를 위해 추가 */
     z-index: 5;
     /* 오버레이보다 위 */
-    pointer-events: none;
-    /* 터치 통과 */
+    pointer-events: auto;
+    /* 터치 이벤트 허용 (사물 선택 가능) */
 }
 
 .scan-frame::before,

@@ -392,7 +392,7 @@ function drawAROverlay(canvas, predictions) {
             // 터치 유도 아이콘 (옵션)
             if (isMapped) {
                 ctx.fillStyle = '#FFFFFF';
-                font = '30px serif';
+                ctx.font = '30px serif'; // ctx. 추가 (버그 수정)
                 ctx.fillText('👆', x + width / 2 - 15, y + height / 2 + 10);
                 // Font 복구
                 ctx.font = 'bold 20px Pretendard';
@@ -405,12 +405,42 @@ function handleCanvasClick(event, canvas) {
     if (!lastPredictions || lastPredictions.length === 0) return;
 
     const rect = canvas.getBoundingClientRect();
-    // 캔버스 좌표계로 변환 (CSS 크기 vs 실제 픽셀 크기 비율 계산)
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
+    const video = document.getElementById('camera-feed');
+    if (!video) return;
 
-    const clickX = (event.clientX - rect.left) * scaleX;
-    const clickY = (event.clientY - rect.top) * scaleY;
+    // [트래킹 개선] object-fit: contain 대응 좌표 계산
+    // 비디오/캔버스의 실제 렌더링 비율과 오프셋 계산
+    const videoRatio = video.videoWidth / video.videoHeight;
+    const elementRatio = rect.width / rect.height;
+
+    let renderW, renderH, offsetX, offsetY;
+
+    if (elementRatio > videoRatio) {
+        // 좌우 레터박스 (세로에 맞춤)
+        renderH = rect.height;
+        renderW = renderH * videoRatio;
+        offsetX = (rect.width - renderW) / 2;
+        offsetY = 0;
+    } else {
+        // 상하 레터박스 (가로에 맞춤)
+        renderW = rect.width;
+        renderH = renderW / videoRatio;
+        offsetX = 0;
+        offsetY = (rect.height - renderH) / 2;
+    }
+
+    // 클릭 좌표를 렌더링된 영역 기준으로 변환
+    const relativeX = event.clientX - rect.left - offsetX;
+    const relativeY = event.clientY - rect.top - offsetY;
+
+    // 실제 픽셀 좌표로 변환
+    const scaleX = video.videoWidth / renderW;
+    const scaleY = video.videoHeight / renderH;
+
+    const clickX = relativeX * scaleX;
+    const clickY = relativeY * scaleY;
+
+    console.log(`Click at: ${clickX}, ${clickY} (Internal Pixels)`);
 
     // 매핑 정의 (drawAROverlay와 동일)
     const map = {
@@ -420,10 +450,7 @@ function handleCanvasClick(event, canvas) {
         'bed': 'bed'
     };
 
-    // 클릭된 박스 찾기 (여러 개 겹칠 경우 가장 작은 박스 or 가장 위에 있는 박스 우선? 여기선 단순 역순)
     let selected = null;
-
-    // 역순으로 순회 (위에 그려진 것부터 확인)
     for (let i = lastPredictions.length - 1; i >= 0; i--) {
         const p = lastPredictions[i];
         const [x, y, width, height] = p.bbox;
@@ -437,15 +464,10 @@ function handleCanvasClick(event, canvas) {
     if (selected) {
         const mappedId = map[selected.class];
         if (mappedId) {
-            // 성공! 다음 단계로
-            stopRealTimeDetection();
-            // confirm with user or just go? User said "select box then proceed"
-            // Let's show a quick toast "Selected!" and go
-            showToast(`[${selected.class}] 선택 완료!`);
+            showToast(`✨ ${selected.class} 인식 성공!`);
             selectEnvironment(mappedId);
         } else {
-            // 주황색 박스 클릭 시 피드백
-            showToast(`[${selected.class}] 말고, 의자나 컵을 찾아보세요! 😅`);
+            showToast(`[${selected.class}] 대신 의자나 컵을 눌러보세요!`);
         }
     }
 }
@@ -570,6 +592,7 @@ function selectEnvironment(envId) {
     if (!env) return;
 
     // [심사위원 보완 사항 반영] 안전 체크 단계 추가
+    stopRealTimeDetection(); // 선택되면 스캔 중지
     AppState.selectedEnvForSafety = env;
     showSafetyCheck(env);
 }
