@@ -704,8 +704,32 @@ async function startCameraAPI(elementId) {
 
 function startARAnimation() {
     const arMissionEl = document.getElementById('ar-mission-text');
+    const arArrowEl = document.getElementById('ar-arrow');
+    const arObjectIconEl = document.getElementById('ar-object-icon');
+
     if (arMissionEl && AppState.currentMission) {
         arMissionEl.textContent = AppState.currentMission.mission;
+
+        // [사용자 피드백 반영] 인식된 사물에 따른 화살표 및 아이콘 변경
+        const envId = AppState.currentMission.environment;
+        const envIcon = AppState.currentMission.environmentIcon;
+
+        if (arObjectIconEl) {
+            arObjectIconEl.textContent = envIcon; // 🪑, 🥛 등
+        }
+
+        if (arArrowEl) {
+            // 사물에 맞는 동작 화살표 설정
+            if (envId === 'chair') {
+                arArrowEl.textContent = '↓'; // 의자는 앉는 동작 위주
+            } else if (envId === 'cup') {
+                arArrowEl.textContent = '↑'; // 컵은 들어올리는 동작 위주
+            } else if (envId === 'bed') {
+                arArrowEl.textContent = '↔️'; // 침대는 눕거나 짚는 동작
+            } else {
+                arArrowEl.textContent = '⭕'; // 일반적인 타겟 지점
+            }
+        }
     }
 
     // 파티클 효과 시작
