@@ -1095,6 +1095,19 @@ function showRewardScreen() {
         submessageEl.textContent = '언제든 다시 시도할 수 있어요';
     }
 
+    // [사용자 피드백 반영] 답변 표시 로직 추가
+    const responseContainer = document.getElementById('reward-response-container');
+    const responseText = document.getElementById('reward-response-text');
+
+    if (AppState.smallTalkCompleted && AppState.smallTalkResponse) {
+        if (responseContainer && responseText) {
+            responseContainer.style.display = 'block';
+            responseText.textContent = AppState.smallTalkResponse;
+        }
+    } else {
+        if (responseContainer) responseContainer.style.display = 'none';
+    }
+
     // 활동 기록 저장
     saveActivity();
 
@@ -1246,8 +1259,14 @@ function renderRecentActivities() {
         const envInfo = ENVIRONMENTS.find(e => e.id === act.environment);
         const icon = envInfo?.icon || '📋';
         const statusIcon = act.completed ? '✅' : (act.isRestDay ? '😴' : '⏸️');
+
+        // [사용자 피드백 반영] 답변이 있을 경우 표시
         const smallTalkBadge = act.smallTalkCompleted
-            ? '<span class="badge badge-primary">스몰토크 ✓</span>'
+            ? '<span class="badge badge-primary">대화 완료 ✓</span>'
+            : '';
+
+        const responseText = (act.smallTalkCompleted && act.smallTalkResponse)
+            ? `<div class="mt-xs" style="font-size: 13px; color: var(--color-primary); background: rgba(74, 144, 226, 0.1); padding: 4px 8px; border-radius: 4px;">💬 ${act.smallTalkResponse}</div>`
             : '';
 
         return `
@@ -1256,13 +1275,14 @@ function renderRecentActivities() {
                     <div style="font-size: 24px;">${icon}</div>
                     <div class="flex-1">
                         <div class="flex items-center gap-sm">
-                            <span class="font-weight: 600;">${act.date}</span>
+                            <span class="font-weight: 600;">${act.date || '-'}</span>
                             <span>${statusIcon}</span>
                             ${smallTalkBadge}
                         </div>
                         <div class="text-muted" style="font-size: var(--font-size-sm);">
-                            ${act.isRestDay ? '쉬는 날' : act.mission}
+                            ${act.isRestDay ? '쉬는 날' : (act.mission || '-')}
                         </div>
+                        ${responseText}
                     </div>
                 </div>
             </div>
@@ -1439,17 +1459,21 @@ function renderDetailActivities(user) {
                         <th>환경</th>
                         <th>완료</th>
                         <th>스몰토크</th>
+                        <th>답변</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${activities.map(act => {
         const env = ENVIRONMENTS.find(e => e.id === act.environment);
+        // [사용자 피드백 반영] 답변 있을 경우 표시
+        const response = (act.smallTalkCompleted && act.smallTalkResponse) ? act.smallTalkResponse : '-';
         return `
                             <tr>
-                                <td>${act.date}</td>
+                                <td>${act.date || '-'}</td>
                                 <td>${env?.icon || '-'} ${env?.name || '-'}</td>
                                 <td>${act.completed ? '✅' : '⏸️'}</td>
                                 <td>${act.smallTalkCompleted ? '✅' : '-'}</td>
+                                <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${response}">${response}</td>
                             </tr>
                         `;
     }).join('')}

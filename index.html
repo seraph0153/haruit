@@ -418,6 +418,13 @@
             <p class="reward-submessage" id="reward-submessage">
                 작은 움직임이 큰 변화를 만들어요 ✨
             </p>
+
+            <!-- [사용자 피드백 반영] 스몰토크 답변 표시 영역 -->
+            <div id="reward-response-container"
+                style="display: none; background: rgba(255,255,255,0.7); padding: 16px; border-radius: 16px; margin: 20px 0; max-width: 80%; text-align: left;">
+                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 4px;">나눈 대화 기록:</p>
+                <p id="reward-response-text" style="font-weight: 600; color: var(--color-primary);"></p>
+            </div>
             <button class="btn btn-primary btn-lg" onclick="goHome()">
                 홈으로 돌아가기
             </button>
