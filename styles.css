@@ -856,9 +856,21 @@ textarea.input {
 
 .progress-inner {
     height: 100%;
-    background: var(--color-primary);
-    box-shadow: 0 0 10px var(--color-primary);
-    transition: width 0.3s ease;
+    background: linear-gradient(90deg, var(--color-primary), #6ba8ff, var(--color-primary));
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+    box-shadow: 0 0 15px rgba(74, 144, 226, 0.6);
+    transition: width 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: -100% 0;
+    }
 }
 
 .success-flash {

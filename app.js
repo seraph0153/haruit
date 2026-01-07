@@ -798,12 +798,21 @@ async function monitoringLoop() {
                         Math.pow(currentPos.y - AppState.lastObjectPos.y, 2)
                     );
 
-                    // 임계값(예: 30px) 이상의 움직임 감지 시 카운트
-                    if (dist > 30) {
+                    // [사용자 피드백 반영] 임계값을 30px -> 15px로 낮추어 민감도 향상
+                    if (dist > 15) {
                         AppState.movementCount++;
                         console.log("Movement detected!", AppState.movementCount);
+
                         showSuccessEffect();
                         updateMonitoringUI();
+
+                        // [인터랙티브 강화] 움직임 감지 시 화살표와 아이콘을 살짝 키워서 반응형 느낌 부여
+                        triggerInteractiveReaction();
+
+                        // 절반 달성 시 응원
+                        if (AppState.movementCount === Math.floor(AppState.targetMovement / 2)) {
+                            showToast("거의 다 왔어요! 조금만 더!");
+                        }
 
                         // 목표 달성 시 성공 처리
                         if (AppState.movementCount >= AppState.targetMovement) {
@@ -820,6 +829,21 @@ async function monitoringLoop() {
     }
 
     monitoringFrameId = requestAnimationFrame(monitoringLoop);
+}
+
+function triggerInteractiveReaction() {
+    const arrow = document.getElementById('ar-arrow');
+    const icon = document.getElementById('ar-object-icon');
+
+    [arrow, icon].forEach(el => {
+        if (el) {
+            el.style.transform = 'scale(1.3)';
+            el.style.transition = 'transform 0.1s ease-out';
+            setTimeout(() => {
+                el.style.transform = 'scale(1)';
+            }, 100);
+        }
+    });
 }
 
 function updateMonitoringUI() {
