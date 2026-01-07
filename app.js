@@ -779,7 +779,20 @@ async function monitoringLoop() {
     if (!AppState.isMonitoring) return;
 
     const video = document.getElementById('ar-camera-bg');
-    if (video && video.readyState === 4 && AppState.objectDetectionModel) {
+    const canvas = document.getElementById('ar-tracking-canvas');
+
+    if (!video || !canvas || !AppState.objectDetectionModel) return;
+
+    // 캔버스 크기 맞춤
+    if (video.videoWidth > 0 && canvas.width !== video.videoWidth) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+    }
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (video.readyState === 4) {
         try {
             const predictions = await AppState.objectDetectionModel.detect(video);
             const targetClass = AppState.currentMission.environment; // 'chair', 'cup' 등
@@ -789,6 +802,18 @@ async function monitoringLoop() {
 
             if (target) {
                 const [x, y, w, h] = target.bbox;
+
+                // [사용자 피드백 반영] 타겟 오브젝트를 따라다니는 트래킹 박스 그리기
+                ctx.strokeStyle = '#00FF00';
+                ctx.setLineDash([10, 5]); // 트래킹 느낌을 위해 점선 적용
+                ctx.lineWidth = 4;
+                ctx.strokeRect(x, y, w, h);
+                ctx.setLineDash([]); // 다시 실선으로
+
+                // 반투명 배경
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
+                ctx.fillRect(x, y, w, h);
+
                 const currentPos = { x: x + w / 2, y: y + h / 2 }; // 중심점
 
                 if (AppState.lastObjectPos) {
