@@ -783,10 +783,13 @@ async function monitoringLoop() {
 
     if (!video || !canvas || !AppState.objectDetectionModel) return;
 
-    // 캔버스 크기 맞춤
-    if (video.videoWidth > 0 && canvas.width !== video.videoWidth) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+    // [트래킹 개선] 캔버스 크기를 비디오의 실제 렌더링 크기에 맞춤
+    if (video.videoWidth > 0) {
+        // 비디오 해상도와 캔버스 해상도 완전 일치
+        if (canvas.width !== video.videoWidth) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        }
     }
 
     const ctx = canvas.getContext('2d');
@@ -803,43 +806,36 @@ async function monitoringLoop() {
             if (target) {
                 const [x, y, w, h] = target.bbox;
 
-                // [사용자 피드백 반영] 타겟 오브젝트를 따라다니는 트래킹 박스 그리기
+                // 트래킹 박스 그리기
                 ctx.strokeStyle = '#00FF00';
-                ctx.setLineDash([10, 5]); // 트래킹 느낌을 위해 점선 적용
+                ctx.setLineDash([10, 5]);
                 ctx.lineWidth = 4;
                 ctx.strokeRect(x, y, w, h);
-                ctx.setLineDash([]); // 다시 실선으로
+                ctx.setLineDash([]);
 
                 // 반투명 배경
                 ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
                 ctx.fillRect(x, y, w, h);
 
-                const currentPos = { x: x + w / 2, y: y + h / 2 }; // 중심점
+                const currentPos = { x: x + w / 2, y: y + h / 2 };
 
                 if (AppState.lastObjectPos) {
-                    // 이전 프레임과의 거리 계산
                     const dist = Math.sqrt(
                         Math.pow(currentPos.x - AppState.lastObjectPos.x, 2) +
                         Math.pow(currentPos.y - AppState.lastObjectPos.y, 2)
                     );
 
-                    // [사용자 피드백 반영] 임계값을 30px -> 15px로 낮추어 민감도 향상
+                    // 민감도 15px 유지
                     if (dist > 15) {
                         AppState.movementCount++;
-                        console.log("Movement detected!", AppState.movementCount);
-
                         showSuccessEffect();
                         updateMonitoringUI();
-
-                        // [인터랙티브 강화] 움직임 감지 시 화살표와 아이콘을 살짝 키워서 반응형 느낌 부여
                         triggerInteractiveReaction();
 
-                        // 절반 달성 시 응원
                         if (AppState.movementCount === Math.floor(AppState.targetMovement / 2)) {
                             showToast("거의 다 왔어요! 조금만 더!");
                         }
 
-                        // 목표 달성 시 성공 처리
                         if (AppState.movementCount >= AppState.targetMovement) {
                             handleMonitoringSuccess();
                             return;
@@ -955,6 +951,9 @@ function hasSomeoneNearby(hasCompany) {
 
 function completeMission(completed) {
     AppState.missionCompleted = completed;
+
+    // [사용자 피드백 반영] 모니터링 중지 및 명확한 리소스 정리
+    stopMonitoring();
 
     if (completed) {
         // 미션 완료 시 스몰토크 여부 질문 화면으로
