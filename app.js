@@ -1653,15 +1653,17 @@ function renderDetailActivities(user) {
                 <tbody>
                     ${activities.map(act => {
         const env = ENVIRONMENTS.find(e => e.id === act.environment);
-        // [보안] 관리자 모드에서는 답변 내용을 마스킹 처리 (Zero-Knowledge)
-        const responseText = act.smallTalkCompleted ? '암호화된 본문 [🔒]' : '-';
+        // [사용자 요청 반영] 개인 담당 관리자는 상호작용 내용을 모니터링 가능하도록 복호화
+        const responseText = act.smallTalkCompleted && act.smallTalkResponse
+            ? decryptData(act.smallTalkResponse)
+            : '-';
         return `
                             <tr>
                                 <td>${act.date || '-'}</td>
                                 <td>${env?.icon || '-'} ${env?.name || '-'}</td>
                                 <td>${act.completed ? '✅' : '⏸️'}</td>
                                 <td>${act.smallTalkCompleted ? '✅' : '-'}</td>
-                                <td style="color: var(--text-muted); font-style: italic;">${responseText}</td>
+                                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${responseText}">${responseText}</td>
                             </tr>
                         `;
     }).join('')}
