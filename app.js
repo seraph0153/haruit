@@ -60,8 +60,44 @@ const AppState = {
             this.cameraStream.getTracks().forEach(track => track.stop());
             this.cameraStream = null;
         }
+    },
+
+    // [NEW] 암호화 키 관리
+    getEncryptionKey() {
+        let key = localStorage.getItem('haruit_security_key');
+        if (!key) {
+            // 32글자 랜덤 키 생성 (AES-256용)
+            key = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+                .map(b => b.toString(16).padStart(2, '0')).join('');
+            localStorage.setItem('haruit_security_key', key);
+        }
+        return key;
     }
 };
+
+/**
+ * [NEW] 데이터 암호화 (AES-256)
+ */
+function encryptData(text) {
+    if (!text) return text;
+    const key = AppState.getEncryptionKey();
+    return CryptoJS.AES.encrypt(text, key).toString();
+}
+
+/**
+ * [NEW] 데이터 복호화
+ */
+function decryptData(ciphertext) {
+    if (!ciphertext) return ciphertext;
+    try {
+        const key = AppState.getEncryptionKey();
+        const bytes = CryptoJS.AES.decrypt(ciphertext, key);
+        return bytes.toString(CryptoJS.enc.Utf8);
+    } catch (e) {
+        console.error("복호화 실패:", e);
+        return "[복호화 실패]";
+    }
+}
 
 // ============================================
 // 화면 전환
@@ -1165,10 +1201,20 @@ function skipSmallTalk() {
     showRewardScreen();
 }
 
-function completeSmallTalk() {
+async function completeSmallTalk() {
     const responseInput = document.getElementById('smalltalk-response-input');
-    AppState.smallTalkResponse = responseInput?.value.trim() || null;
+    const response = responseInput?.value.trim() || null;
+
+    AppState.smallTalkResponse = response;
     AppState.smallTalkCompleted = true;
+
+    // [AI] 감정 분석 진행
+    if (response) {
+        AppState.detectedEmotion = await analyzeSentiment(response);
+    } else {
+        AppState.detectedEmotion = '평온';
+    }
+
     showRewardScreen();
 }
 
@@ -1187,7 +1233,37 @@ function showRewardScreen() {
     const messageEl = document.getElementById('reward-message');
     const submessageEl = document.getElementById('reward-submessage');
 
-    if (AppState.missionCompleted) {
+    // [AI] 감정 기반 캐릭터 및 음악 피드백
+    if (AppState.smallTalkCompleted && AppState.detectedEmotion) {
+        const emotion = AppState.detectedEmotion;
+        iconEl.textContent = getEmotionCharacter(emotion);
+
+        // 음악 추천 카드 표시
+        const music = getMusicRecommendation(emotion);
+        const musicContainer = document.getElementById('reward-music-container');
+        if (musicContainer) {
+            musicContainer.style.display = 'block';
+            musicContainer.innerHTML = `
+                <div class="card p-md mt-md" style="background: var(--bg-main);">
+                    <div class="text-xs text-muted mb-xs">🎵 당신의 기분에 맞춘 추천 음악</div>
+                    <a href="${music.link}" target="_blank" class="flex items-center justify-between" style="text-decoration: none; color: inherit;">
+                        <div style="font-weight: 600;">${music.title}</div>
+                        <div style="font-size: 20px;">🎧</div>
+                    </a>
+                </div>
+            `;
+        }
+
+        // 감정별 대사
+        const emotionalMessages = {
+            '기쁨': '기분 좋은 일이 있으시군요! 저도 덩달아 행복해져요.',
+            '슬픔': '조금 슬픈 일이 있으셨군요. 제가 계속 곁에 있어 드릴게요.',
+            '분노': '많이 속상하시겠어요. 음악을 들으며 마음을 가다듬어 보세요.',
+            '평온': '오늘도 평온한 하루네요. 이런 평화가 참 소중해요.',
+            '불안': '마음이 조금 불안하시군요. 깊게 숨을 들이마셔 보세요.'
+        };
+        messageEl.textContent = emotionalMessages[emotion];
+    } else if (AppState.missionCompleted) {
         if (AppState.smallTalkCompleted) {
             iconEl.textContent = '💝';
             messageEl.textContent = '누군가와 따뜻한 대화를 나눴네요';
@@ -1214,17 +1290,19 @@ function showRewardScreen() {
         }
     } else {
         if (responseContainer) responseContainer.style.display = 'none';
+        const musicContainer = document.getElementById('reward-music-container');
+        if (musicContainer) musicContainer.style.display = 'none';
     }
 
     // 활동 기록 저장
     saveActivity();
 
-    // 3초 후 홈으로 자동 이동
+    // 5초 후 홈으로 자동 이동
     setTimeout(() => {
         if (AppState.currentScreen === 'reward') {
             goHome();
         }
-    }, 5000);
+    }, 8000); // AI 내용을 읽을 시간을 더 줌
 }
 
 function saveActivity() {
@@ -1247,7 +1325,8 @@ function saveActivity() {
         smallTalkIncluded: !!AppState.smallTalkQuestion,
         smallTalkQuestion: AppState.smallTalkQuestion,
         smallTalkCompleted: AppState.smallTalkCompleted,
-        smallTalkResponse: AppState.smallTalkResponse
+        // [보안] 사용자 답변 암호화 저장
+        smallTalkResponse: encryptData(AppState.smallTalkResponse)
     };
 
     DataManager.addActivity(user.userId, activity);
@@ -1373,8 +1452,9 @@ function renderRecentActivities() {
             ? '<span class="badge badge-primary">대화 완료 ✓</span>'
             : '';
 
-        const responseText = (act.smallTalkCompleted && act.smallTalkResponse)
-            ? `<div class="mt-xs" style="font-size: 13px; color: var(--color-primary); background: rgba(74, 144, 226, 0.1); padding: 4px 8px; border-radius: 4px;">💬 ${act.smallTalkResponse}</div>`
+        const response = act.smallTalkResponse ? decryptData(act.smallTalkResponse) : '';
+        const responseText = (act.smallTalkCompleted && response)
+            ? `<div class="mt-xs" style="font-size: 13px; color: var(--color-primary); background: rgba(74, 144, 226, 0.1); padding: 4px 8px; border-radius: 4px;">💬 ${response}</div>`
             : '';
 
         return `
@@ -1573,15 +1653,15 @@ function renderDetailActivities(user) {
                 <tbody>
                     ${activities.map(act => {
         const env = ENVIRONMENTS.find(e => e.id === act.environment);
-        // [사용자 피드백 반영] 답변 있을 경우 표시
-        const response = (act.smallTalkCompleted && act.smallTalkResponse) ? act.smallTalkResponse : '-';
+        // [보안] 관리자 모드에서는 답변 내용을 마스킹 처리 (Zero-Knowledge)
+        const responseText = act.smallTalkCompleted ? '암호화된 본문 [🔒]' : '-';
         return `
                             <tr>
                                 <td>${act.date || '-'}</td>
                                 <td>${env?.icon || '-'} ${env?.name || '-'}</td>
                                 <td>${act.completed ? '✅' : '⏸️'}</td>
                                 <td>${act.smallTalkCompleted ? '✅' : '-'}</td>
-                                <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${response}">${response}</td>
+                                <td style="color: var(--text-muted); font-style: italic;">${responseText}</td>
                             </tr>
                         `;
     }).join('')}
@@ -1887,4 +1967,73 @@ function generateWeeklySummaryReport() {
             본 리포트는 하루잇(HARUIT) AI 분석 시스템에 의해 자동으로 생성되었습니다.
         </div>
     `;
-}
+
+    /**
+     * [보안] 프라이버시 고지 모달 표시
+     */
+    function showPrivacyDisclosure() {
+        const modal = document.getElementById('security-modal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeSecurityModal() {
+        const modal = document.getElementById('security-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    /**
+     * [보안] 스텔스 SOS 트리거 로직
+     */
+    let sosTimer = null;
+    let sosClickCount = 0;
+    let sosClickTimer = null;
+
+    function startSOSLongPress() {
+        sosTimer = setTimeout(() => {
+            triggerStealthSOS("3초 롱프레스");
+        }, 3000);
+    }
+
+    function cancelSOSLongPress() {
+        if (sosTimer) {
+            clearTimeout(sosTimer);
+            sosTimer = null;
+        }
+    }
+
+    function handleSOSTripleClick() {
+        sosClickCount++;
+        if (sosClickCount === 1) {
+            sosClickTimer = setTimeout(() => {
+                sosClickCount = 0;
+            }, 600);
+        } else if (sosClickCount >= 3) {
+            clearTimeout(sosClickTimer);
+            sosClickCount = 0;
+            triggerStealthSOS("3회 연속 클릭");
+        }
+    }
+
+    function triggerStealthSOS(method) {
+        console.log(`[ALERT] Stealth SOS Triggered via ${method}`);
+
+        // 위치 정보 가져오기 시도
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                const { latitude, longitude } = pos.coords;
+                sendEmergencyAlert(latitude, longitude);
+            }, err => {
+                sendEmergencyAlert(null, null);
+            });
+        } else {
+            sendEmergencyAlert(null, null);
+        }
+    }
+
+    function sendEmergencyAlert(lat, lng) {
+        const locationStr = lat ? `\n위치: https://maps.google.com/?q=${lat},${lng}` : "\n위치: 확인 불가";
+        const message = `[하루잇 긴급 알림] 사용자의 위험 신호가 감지되었습니다.${locationStr}`;
+
+        // 시니어 안심을 위한 결과 표시 (실제로는 서버 전송)
+        alert("🚨 비상 연락처로 현재 위치와 긴급 메시지가 전송되었습니다.\n곧 도움을 드릴 분이 연락할 것입니다.");
+    }

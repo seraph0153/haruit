@@ -110,6 +110,13 @@
                     </div>
                 </div>
 
+                <!-- 보안 상태 배지 -->
+                <div class="flex justify-center mb-md" onclick="showPrivacyDisclosure()">
+                    <span class="badge badge-security">
+                        🛡️ 보안 암호화 활성화됨
+                    </span>
+                </div>
+
                 <!-- SOS 버튼 (긴급 호출) -->
                 <div class="sos-container mb-md">
                     <button class="btn btn-sos btn-full" onclick="handleSOS()">
@@ -435,6 +442,9 @@
                 <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 4px;">나눈 대화 기록:</p>
                 <p id="reward-response-text" style="font-weight: 600; color: var(--color-primary);"></p>
             </div>
+
+            <!-- [AI] 음악 추천 컨테이너 -->
+            <div id="reward-music-container" style="display: none; width: 100%; max-width: 85%;"></div>
             <button class="btn btn-primary btn-lg" onclick="goHome()">
                 홈으로 돌아가기
             </button>
@@ -785,9 +795,34 @@
 
         </div>
 
+        <!-- [NEW] 스텔스 긴급 알림 버튼 (심박수 아이콘 - 반투명) -->
+        <div id="stealth-sos" class="stealth-sos" onmousedown="startSOSLongPress()" onmouseup="cancelSOSLongPress()"
+            ontouchstart="startSOSLongPress()" ontouchend="cancelSOSLongPress()" onclick="handleSOSTripleClick()">
+            <div class="pulse-icon"></div>
+        </div>
+
+        <!-- ============================================
+             [NEW] 화면 14: 보안 정보 모달 (Overlay)
+             ============================================ -->
+        <div id="security-modal" class="modal-overlay" style="display: none;">
+            <div class="card p-xl" style="max-width: 320px; background: white; margin: 20px;">
+                <div class="text-center mb-lg">
+                    <div style="font-size: 64px; margin-bottom: 16px;">🛡️</div>
+                    <h2 class="headline" style="font-size: 24px;">철저한 프라이버시 보호</h2>
+                </div>
+                <div class="text-muted" style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+                    <p>귀하의 모든 기록은 <strong>AES-256 알고리즘</strong>으로 기기 내부에서 즉시 암호화됩니다.</p>
+                    <p class='mt-sm'>기록된 내용은 관리자 조차도 열람할 수 없으며, 관리자는 서비스 품질 개선을 위해 활동 시간과 완료 횟수만 파악하고 있습니다.</p>
+                </div>
+                <button class="btn btn-primary btn-full" onclick="closeSecurityModal()">안심하고 사용하기</button>
+            </div>
+        </div>
+
         <!-- 스크립트 -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
         <script src="data.js"></script>
         <script src="app.js"></script>
 </body>
 
 </html>
+```

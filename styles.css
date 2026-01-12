@@ -33,6 +33,8 @@
     --text-success: #2E7D32;
     --text-warning: #F57C00;
     --text-error: #D32F2F;
+    --text-security: #2E7D32;
+    --bg-security: rgba(46, 125, 50, 0.1);
 
     /* 그림자 */
     --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
