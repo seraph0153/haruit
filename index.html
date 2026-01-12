@@ -110,6 +110,13 @@
                     </div>
                 </div>
 
+                <!-- SOS 버튼 (긴급 호출) -->
+                <div class="sos-container mb-md">
+                    <button class="btn btn-sos btn-full" onclick="handleSOS()">
+                        🚨 긴급 도움 요청 (SOS)
+                    </button>
+                </div>
+
                 <!-- CTA 버튼 -->
                 <div class="flex flex-col gap-md mt-auto" style="padding-bottom: 24px;">
                     <button class="btn btn-primary btn-lg btn-full" onclick="startMission()">
@@ -180,9 +187,12 @@
                     </label>
                 </div>
 
-                <div class="mt-auto" style="padding: 24px 0;">
-                    <button class="btn btn-primary btn-lg btn-full" onclick="confirmMobility()">
+                <div class="mt-auto" style="padding: 24px;">
+                    <button class="btn btn-primary btn-lg btn-full mb-md" onclick="confirmMobility()">
                         다음으로 →
+                    </button>
+                    <button class="btn btn-outline btn-lg btn-full" onclick="startManualMissionSelecting()">
+                        📷 카메라 없이 지금 시작할래요
                     </button>
                     <button class="btn btn-ghost btn-full mt-md" onclick="goHome()">
                         뒤로 가기
@@ -568,8 +578,11 @@
                     <!-- 사용자 카드가 여기에 렌더링됩니다 -->
                 </div>
 
-                <!-- 데이터 내보내기 -->
-                <div class="mt-lg">
+                <!-- 데이터 내보내기 및 리포트 -->
+                <div class="mt-lg flex flex-col gap-sm">
+                    <button class="btn btn-primary btn-full" onclick="generateWeeklySummaryReport()">
+                        📊 주간 요약 리포트 생성 (한 장 요약)
+                    </button>
                     <button class="btn btn-outline btn-full" onclick="exportAllData()">
                         📥 전체 데이터 내보내기 (CSV)
                     </button>
@@ -578,99 +591,203 @@
         </section>
 
         <!-- ============================================
+             [NEW] 화면 13: 관리자 주간 요약 리포트
+             ============================================ -->
+        <section id="admin-weekly-report" class="screen">
+            <div class="flex-1 flex flex-col p-lg bg-white">
+                <div class="flex items-center justify-between mb-lg no-print">
+                    <button class="btn btn-ghost p-none" onclick="showScreen('admin-dashboard')">
+                        <span style="font-size: 24px;">⬅️</span>
+                    </button>
+                    <h2 class="headline" style="margin: 0;">주간 활동 요약 리포트</h2>
+                    <button class="btn btn-sm btn-outline" onclick="window.print()">
+                        🖨️ 인쇄/PDF
+                    </button>
+                </div>
+
+                <div id="weekly-report-content" class="report-paper card p-xl flex-1 overflow-y-auto"
+                    style="border: 2px solid #E0E0E0; background: #fff; color: #333;">
+                    <!-- 리포트 내용이 여기에 동적으로 생성됩니다 -->
+                </div>
+            </div>
+        </section>
+    </div>
+    </div>
+    </section>
+
+    <!-- ============================================
              화면 15: 사용자 상세 보기
              ============================================ -->
-        <section id="admin-user-detail" class="screen">
-            <div class="admin-header">
-                <button class="btn btn-sm btn-ghost" style="color: white;" onclick="backToAdminDashboard()">
-                    ← 뒤로
-                </button>
-                <div class="admin-title" id="detail-user-name">사용자</div>
-                <div style="width: 60px;"></div>
+    <section id="admin-user-detail" class="screen">
+        <div class="admin-header">
+            <button class="btn btn-sm btn-ghost" style="color: white;" onclick="backToAdminDashboard()">
+                ← 뒤로
+            </button>
+            <div class="admin-title" id="detail-user-name">사용자</div>
+            <div style="width: 60px;"></div>
+        </div>
+
+        <div class="flex-1" style="overflow-y: auto;">
+            <p class="text-muted text-center mb-lg" id="detail-user-joindate">
+                가입일: 2025-01-01
+            </p>
+
+            <!-- 기본 통계 -->
+            <h3 class="mb-sm" style="font-weight: 600;">📊 참여 통계</h3>
+            <div class="stats-grid mb-lg">
+                <div class="stat-card">
+                    <div class="stat-value" id="detail-total-days">0</div>
+                    <div class="stat-label">총 참여일</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="detail-monthly-rate">0%</div>
+                    <div class="stat-label">월간 참여율</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="detail-consecutive">0</div>
+                    <div class="stat-label">연속 참여</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="detail-completion-rate">0%</div>
+                    <div class="stat-label">완료율</div>
+                </div>
             </div>
 
-            <div class="flex-1" style="overflow-y: auto;">
-                <p class="text-muted text-center mb-lg" id="detail-user-joindate">
-                    가입일: 2025-01-01
-                </p>
+            <!-- 스몰토크 통계 -->
+            <h3 class="mb-sm" style="font-weight: 600;">💬 스몰토크 통계</h3>
+            <div class="card mb-lg">
+                <div class="flex justify-between mb-sm">
+                    <span>참여 횟수</span>
+                    <span class="text-primary" style="font-weight: 600;" id="detail-smalltalk-count">0</span>
+                </div>
+                <div class="flex justify-between mb-sm">
+                    <span>완료율</span>
+                    <span class="text-primary" style="font-weight: 600;" id="detail-smalltalk-rate">0%</span>
+                </div>
+                <div>
+                    <span class="text-muted" style="font-size: 14px;">가장 자주 받은 질문:</span>
+                    <p id="detail-frequent-question" style="font-weight: 500; margin-top: 4px;">없음</p>
+                </div>
+            </div>
 
-                <!-- 기본 통계 -->
-                <h3 class="mb-sm" style="font-weight: 600;">📊 참여 통계</h3>
-                <div class="stats-grid mb-lg">
-                    <div class="stat-card">
-                        <div class="stat-value" id="detail-total-days">0</div>
-                        <div class="stat-label">총 참여일</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="detail-monthly-rate">0%</div>
-                        <div class="stat-label">월간 참여율</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="detail-consecutive">0</div>
-                        <div class="stat-label">연속 참여</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="detail-completion-rate">0%</div>
-                        <div class="stat-label">완료율</div>
+            <!-- 선호 미션 유형 -->
+            <h3 class="mb-sm" style="font-weight: 600;">🎯 선호 미션 유형</h3>
+            <div class="card mb-lg" id="preferred-missions">
+                <!-- 선호 미션이 여기에 렌더링됩니다 -->
+            </div>
+
+            <!-- 월별 참여 차트 -->
+            <h3 class="mb-sm" style="font-weight: 600;">📈 월별 참여 추이</h3>
+            <div class="card mb-lg">
+                <div class="chart-container">
+                    <div class="bar-chart" id="monthly-chart">
+                        <!-- 차트가 여기에 렌더링됩니다 -->
                     </div>
                 </div>
+            </div>
 
-                <!-- 스몰토크 통계 -->
-                <h3 class="mb-sm" style="font-weight: 600;">💬 스몰토크 통계</h3>
-                <div class="card mb-lg">
-                    <div class="flex justify-between mb-sm">
-                        <span>참여 횟수</span>
-                        <span class="text-primary" style="font-weight: 600;" id="detail-smalltalk-count">0</span>
-                    </div>
-                    <div class="flex justify-between mb-sm">
-                        <span>완료율</span>
-                        <span class="text-primary" style="font-weight: 600;" id="detail-smalltalk-rate">0%</span>
-                    </div>
-                    <div>
-                        <span class="text-muted" style="font-size: 14px;">가장 자주 받은 질문:</span>
-                        <p id="detail-frequent-question" style="font-weight: 500; margin-top: 4px;">없음</p>
-                    </div>
-                </div>
+            <!-- 최근 활동 -->
+            <h3 class="mb-sm" style="font-weight: 600;">📋 최근 활동</h3>
+            <div id="detail-activities" class="mb-lg">
+                <!-- 활동 테이블이 여기에 렌더링됩니다 -->
+            </div>
 
-                <!-- 선호 미션 유형 -->
-                <h3 class="mb-sm" style="font-weight: 600;">🎯 선호 미션 유형</h3>
-                <div class="card mb-lg" id="preferred-missions">
-                    <!-- 선호 미션이 여기에 렌더링됩니다 -->
-                </div>
-
-                <!-- 월별 참여 차트 -->
-                <h3 class="mb-sm" style="font-weight: 600;">📈 월별 참여 추이</h3>
-                <div class="card mb-lg">
-                    <div class="chart-container">
-                        <div class="bar-chart" id="monthly-chart">
-                            <!-- 차트가 여기에 렌더링됩니다 -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 최근 활동 -->
-                <h3 class="mb-sm" style="font-weight: 600;">📋 최근 활동</h3>
-                <div id="detail-activities" class="mb-lg">
-                    <!-- 활동 테이블이 여기에 렌더링됩니다 -->
-                </div>
-
-                <!-- 액션 버튼 -->
-                <div class="flex flex-col gap-sm mb-lg">
-                    <button class="btn btn-outline btn-full" onclick="exportUserData()">
-                        📥 사용자 데이터 내보내기
+            <!-- 액션 버튼 -->
+            <div class="flex flex-col gap-sm mb-lg">
+                <button class="btn btn-outline btn-full" onclick="exportUserData()">
+                    📥 사용자 데이터 내보내기
+                </button>
+                <button class="btn btn-ghost btn-full text-error" onclick="deleteUser()">
+                    🗑️ 사용자 삭제
+                </button>
+            </div>
+        </div>
+        <!-- ============================================
+             [NEW] 화면 10: 프라이버시 및 데이터 정책
+             ============================================ -->
+        <section id="privacy-policy" class="screen">
+            <div class="flex-1 flex flex-col p-lg">
+                <div class="flex items-center gap-sm mb-lg">
+                    <button class="btn btn-ghost p-none" onclick="showScreen('home')">
+                        <span style="font-size: 24px;">⬅️</span>
                     </button>
-                    <button class="btn btn-ghost btn-full text-error" onclick="deleteUser()">
-                        🗑️ 사용자 삭제
+                    <h2 class="headline" style="margin: 0;">프라이버시 및 데이터 정책</h2>
+                </div>
+
+                <div class="card flex-1 overflow-y-auto" style="padding: var(--spacing-md); line-height: 1.8;">
+                    <div class="mb-lg">
+                        <h3 class="text-primary mb-xs">🔒 카메라 및 영상 보호</h3>
+                        <p>하루잇은 사용자의 프라이버시를 최우선으로 합니다. 카메라를 통한 모든 분석은 <strong>기기 내(On-device)</strong>에서 실시간으로 처리되며,
+                            어떠한 경우에도 사진이나 영상을 서버로 전송하거나 저장하지 않습니다.</p>
+                    </div>
+
+                    <div class="mb-lg">
+                        <h3 class="text-primary mb-xs">📊 저장되는 데이터 항목</h3>
+                        <p>서비스 제공을 위해 아래의 데이터만 최소한으로 저장됩니다:</p>
+                        <ul style="padding-left: 20px; margin-top: 8px;">
+                            <li>사용자 이름 (기기 내부 저장)</li>
+                            <li>미션 완료 횟수 및 시간</li>
+                            <li>스몰토크 답변 (기록용)</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-lg">
+                        <h3 class="text-primary mb-xs">🏢 기관 관리자 공유</h3>
+                        <p>기관용 서비스를 이용하실 경우, 위에서 언급한 미션 기록과 답변이 소속 기관 관리자에게 공유되어 더 나은 돌봄을 제공하는 데 활용됩니다.</p>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-lg btn-full mt-lg" onclick="showScreen('home')">
+                    확인했습니다
+                </button>
+            </div>
+        </section>
+
+        <!-- ============================================
+             [NEW] 화면 11: 설정 (접근성 포함)
+             ============================================ -->
+        <section id="settings" class="screen">
+            <div class="flex-1 flex flex-col p-lg">
+                <div class="flex items-center gap-sm mb-lg">
+                    <button class="btn btn-ghost p-none" onclick="showScreen('home')">
+                        <span style="font-size: 24px;">⬅️</span>
+                    </button>
+                    <h2 class="headline" style="margin: 0;">설정</h2>
+                </div>
+
+                <div class="flex flex-col gap-md">
+                    <div class="card p-md flex items-center justify-between">
+                        <div>
+                            <div style="font-weight: 600;">큰 글씨 모드</div>
+                            <div class="text-muted" style="font-size: 14px;">화면의 글씨를 더 크게 봅니다</div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-large-text" onchange="toggleLargeText(this.checked)">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+
+                    <button class="card p-md text-left flex items-center justify-between"
+                        onclick="showScreen('privacy-policy')">
+                        <div>
+                            <div style="font-weight: 600;">프라이버시 및 데이터 정책</div>
+                            <div class="text-muted" style="font-size: 14px;">내 데이터가 어떻게 보호되는지 확인</div>
+                        </div>
+                        <span style="font-size: 20px;">➡️</span>
+                    </button>
+
+                    <button class="btn btn-ghost btn-full mt-xl" onclick="showScreen('role-select')">
+                        🔄 모드 전환 (사용자/관리자)
                     </button>
                 </div>
             </div>
         </section>
 
-    </div>
+        </div>
 
-    <!-- 스크립트 -->
-    <script src="data.js"></script>
-    <script src="app.js"></script>
+        <!-- 스크립트 -->
+        <script src="data.js"></script>
+        <script src="app.js"></script>
 </body>
 
 </html>

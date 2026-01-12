@@ -35,6 +35,7 @@ const AppState = {
 
     // [동작 모니터링 상태]
     isMonitoring: false,
+    isManualMission: false, // [NEW] 수동 미션 여부
     movementCount: 0,
     targetMovement: 5,
     lastObjectPos: null,
@@ -96,9 +97,15 @@ function initScreen(screenId) {
             break;
         case 'environment-scan':
             startCamera(); // 화면 진입 시 카메라 시작
+            speak("카메라를 활용해 주변을 천천히 비춰보세요. 운동할 대상을 찾아드릴게요.");
+            break;
+        case 'mission-suggest':
+            speak(AppState.currentMission?.mission || "미션을 시작해볼까요?");
             break;
         case 'ar-simulation':
             startARCamera(); // AR 배경용 카메라 시작
+            updateARGuidance(); // 가이드 비주얼 설정
+            speak("준비되셨다면 시작해볼까요? 동작을 인식하고 있습니다.");
             break;
     }
 }
@@ -204,7 +211,43 @@ function confirmMobility() {
         showToast('거동 상태를 선택해주세요');
         return;
     }
+    AppState.isManualMission = false; // [NEW] 일반 스캔 모드
     showScreen('environment-scan');
+}
+
+// [NEW] 수동 미션 선택 (비카메라 모드)
+function startManualMissionSelecting() {
+    if (!AppState.selectedMobility) {
+        showToast("먼저 거동 상태를 선택해주세요");
+        return;
+    }
+    showScreen('manual-mission-list');
+    renderManualEnvList();
+}
+
+function renderManualEnvList() {
+    const container = document.getElementById('manual-env-list');
+    if (!container) return;
+
+    container.innerHTML = ENVIRONMENTS.map(env => `
+        <div class="card flex items-center p-md" style="cursor: pointer; margin-bottom: var(--spacing-md);" onclick="selectManualMission('${env.id}')">
+            <div style="font-size: 32px; margin-right: 16px;">${env.icon}</div>
+            <div class="flex-1">
+                <div style="font-weight: 600; font-size: 18px;">${env.name}</div>
+                <div class="text-muted" style="font-size: 14px;">주변의 ${env.name}과 관련된 활동</div>
+            </div>
+            <div style="font-size: 20px;">➡️</div>
+        </div>
+    `).join('');
+}
+
+function selectManualMission(envId) {
+    const env = ENVIRONMENTS.find(e => e.id === envId);
+    if (!env) return;
+
+    AppState.isManualMission = true;
+    generateMission(env);
+    showScreen('mission-suggest');
 }
 
 // ============================================
@@ -711,8 +754,14 @@ function generateMission(specificEnv = null) {
 }
 
 function acceptMission() {
-    showScreen('ar-simulation');
-    startARAnimation();
+    if (AppState.isManualMission) {
+        // [수동 미션] AR 시뮬레이션 대신 모니터링만 바로 시작
+        showScreen('ar-simulation');
+        startARAnimation();
+    } else {
+        showScreen('ar-simulation');
+        startARAnimation();
+    }
 }
 
 function requestNewMission() {
@@ -1675,4 +1724,167 @@ async function loadRunningModel() {
     } finally {
         AppState.isModelLoading = false;
     }
+}
+
+// ============================================
+// [NEW] 접근성 및 긴급 기능
+// ============================================
+
+/**
+ * 긴급 도움 요청 (SOS)
+ */
+function handleSOS() {
+    if (confirm("🚨 긴급 상황인가요? 119로 전화를 연결하시겠습니까?")) {
+        window.location.href = "tel:119";
+    }
+}
+
+/**
+ * 큰 글씨 모드 선택
+ */
+function toggleLargeText(enabled) {
+    if (enabled) {
+        document.body.classList.add('large-text');
+    } else {
+        document.body.classList.remove('large-text');
+    }
+    // 설정 저장 (선택 사항)
+    localStorage.setItem('haruit_large_text', enabled);
+}
+
+/**
+ * 음성 안내 (TTS)
+ */
+function speak(text) {
+    if (!window.speechSynthesis) return;
+
+    // 이전 음성 중단
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ko-KR';
+    utterance.rate = 0.9; // 조금 천천히
+    utterance.pitch = 1.0;
+
+    window.speechSynthesis.speak(utterance);
+}
+
+// 초기 설정 복구
+document.addEventListener('DOMContentLoaded', () => {
+    const largeTextEnabled = localStorage.getItem('haruit_large_text') === 'true';
+    if (largeTextEnabled) {
+        toggleLargeText(true);
+        const toggle = document.getElementById('toggle-large-text');
+        if (toggle) toggle.checked = true;
+    }
+});
+
+// ============================================
+// [NEW] 관리자 주간 요약 리포트
+// ============================================
+
+function generateWeeklySummaryReport() {
+    showScreen('admin-weekly-report');
+
+    const users = DataManager.getAllUsers();
+    if (users.length === 0) {
+        document.getElementById('weekly-report-content').innerHTML = `
+            <div class="text-center p-xl">
+                <p class="text-muted">데이터가 충분하지 않습니다.</p>
+            </div>
+        `;
+        return;
+    }
+
+    // 통계 계산
+    const weeklyParticipants = users.filter(u => {
+        const stats = Statistics.getUserStats(u);
+        return stats.weeklyParticipation.some(p => p > 0);
+    }).length;
+
+    const participationRate = Math.round((weeklyParticipants / users.length) * 100);
+
+    // 미션 및 스몰토크 데이터 취합
+    let allMissions = [];
+    let allSmallTalks = [];
+
+    users.forEach(u => {
+        const activities = DataManager.getActivityHistory(u.userId);
+        activities.forEach(act => {
+            const actDate = act.date ? new Date(act.date) : null;
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+            if (actDate && actDate > oneWeekAgo) {
+                if (act.mission) allMissions.push(act.environment);
+                if (act.smallTalkResponse) allSmallTalks.push({
+                    user: u.username,
+                    response: act.smallTalkResponse
+                });
+            }
+        });
+    });
+
+    // 최다 빈도 환경 추출
+    const envCounts = allMissions.reduce((acc, env) => {
+        acc[env] = (acc[env] || 0) + 1;
+        return acc;
+    }, {});
+
+    const topEnvs = Object.entries(envCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([id, count]) => {
+            const env = ENVIRONMENTS.find(e => e.id === id);
+            return `${env?.icon || '❓'} ${env?.name || '기타'} (${count}회)`;
+        });
+
+    // 리포트 렌더링
+    const today = new Date().toLocaleDateString();
+    const contentEl = document.getElementById('weekly-report-content');
+
+    contentEl.innerHTML = `
+        <div class="report-header text-center mb-xl" style="border-bottom: 2px solid #333; padding-bottom: 20px;">
+            <div style="font-size: 14px; color: var(--color-primary); font-weight: 700;">HARUIT INSTITUTIONAL REPORT</div>
+            <h1 style="font-size: 28px; margin: 10px 0;">주간 활동 및 정서 요약 리포트</h1>
+            <div style="color: #666;">발행일: ${today} | 대상: ${users.length}명</div>
+        </div>
+
+        <div class="report-section mb-xl">
+            <h2 style="font-size: 20px; border-left: 5px solid var(--color-primary); padding-left: 10px; margin-bottom: 15px;">📊 주간 참여 지표</h2>
+            <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="card bg-main p-md text-center">
+                    <div style="font-size: 14px; color: #666;">전체 참여율</div>
+                    <div style="font-size: 32px; font-weight: 800; color: var(--color-primary);">${participationRate}%</div>
+                </div>
+                <div class="card bg-main p-md text-center">
+                    <div style="font-size: 14px; color: #666;">활동 사용자</div>
+                    <div style="font-size: 32px; font-weight: 800; color: var(--color-secondary);">${weeklyParticipants}명</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="report-section mb-xl">
+            <h2 style="font-size: 20px; border-left: 5px solid var(--color-primary); padding-left: 10px; margin-bottom: 15px;">🎯 인기 미션 환경</h2>
+            <div class="card p-md">
+                ${topEnvs.length > 0 ? topEnvs.map(env => `<div class="mb-xs" style="font-size: 18px;">${env}</div>`).join('') : '<p class="text-muted">기록된 활동이 없습니다.</p>'}
+            </div>
+        </div>
+
+        <div class="report-section">
+            <h2 style="font-size: 20px; border-left: 5px solid var(--color-primary); padding-left: 10px; margin-bottom: 15px;">💬 스몰토크 하이라이트</h2>
+            <div class="flex flex-col gap-sm">
+                ${allSmallTalks.length > 0 ? allSmallTalks.slice(-5).map(st => `
+                    <div class="p-sm" style="background: #f9f9f9; border-radius: 8px; border-left: 3px solid #ddd;">
+                        <span style="font-weight: 700; font-size: 14px;">${st.user}님:</span>
+                        <span style="font-style: italic; color: #444;">"${st.response}"</span>
+                    </div>
+                `).join('') : '<p class="text-muted">기록된 대화가 없습니다.</p>'}
+            </div>
+        </div>
+
+        <div class="report-footer mt-2xl text-center" style="border-top: 1px dashed #ccc; padding-top: 20px; font-size: 12px; color: #999;">
+            본 리포트는 하루잇(HARUIT) AI 분석 시스템에 의해 자동으로 생성되었습니다.
+        </div>
+    `;
 }
